@@ -1,0 +1,43 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        Schema::table('listings', function (Blueprint $table) {
+
+            $table->integer('area_sqft')
+                ->nullable()
+                ->after('deposit');
+
+            $table->integer('floor_number')
+                ->nullable()
+                ->after('area_sqft');
+
+            $table->enum('gender_preference', [
+                'male',
+                'female',
+                'family',
+                'any'
+            ])
+            ->default('any')
+            ->after('floor_number');
+        });
+    }
+
+    public function down()
+    {
+        Schema::table('listings', function (Blueprint $table) {
+
+            $table->dropColumn([
+                'area_sqft',
+                'floor_number',
+                'gender_preference',
+            ]);
+        });
+    }
+};
