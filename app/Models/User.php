@@ -7,6 +7,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Listing;
 use App\Models\ListingUnlock;
+use App\Models\WorkerUnlock;
 use App\Models\SavedListing;
 use Filament\Models\Contracts\FilamentUser;
 
@@ -46,9 +47,12 @@ class User extends Authenticatable
     }
     public function listingUnlocks()
     {
-        return $this->hasMany(
-            ListingUnlock::class
-        );
+        return $this->hasMany(ListingUnlock::class);
+    }
+
+    public function workerUnlocks()
+    {
+        return $this->hasMany(WorkerUnlock::class);
     }
     
     public function savedListings()

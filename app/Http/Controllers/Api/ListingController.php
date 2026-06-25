@@ -96,7 +96,8 @@ class ListingController extends Controller
                 $query->latest();
         }
 
-        $listings = $query->paginate(20);
+        $perPage = min((int) $request->get('per_page', 20), 500);
+        $listings = $query->paginate($perPage);
 
         return response()->json([
             'success' => true,

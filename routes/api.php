@@ -8,6 +8,9 @@ use App\Http\Controllers\Api\FurnitureEnquiryController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ListingUnlockController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\WorkerController;
+use App\Http\Controllers\Api\WorkerUnlockController;
+use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\SavedListingController;
 /*
 |--------------------------------------------------------------------------
@@ -38,10 +41,9 @@ Route::prefix('listings')->group(function () {
 
     Route::get('/{id}', [ListingController::class, 'show']);
 
-    Route::post(
-        '/{id}/unlock',
-        [ListingUnlockController::class, 'unlock']
-    );
+    Route::get('/{id}/unlock-status', [ListingUnlockController::class, 'status']);
+
+    Route::post('/{id}/unlock',       [ListingUnlockController::class, 'unlock']);
 
     Route::put('/{id}', [ListingController::class, 'update']);
 
@@ -108,35 +110,12 @@ Route::prefix('furniture-enquiries')->group(function () {
 
 Route::prefix('auth')->group(function () {
 
-    Route::post(
-        'send-otp',
-        [AuthController::class, 'sendOtp']
-    );
-
-    Route::post(
-        'verify-otp',
-        [AuthController::class, 'verifyOtp']
-    );
-
-    Route::post(
-        'select-role',
-        [AuthController::class, 'selectRole']
-    );
-
-    Route::get(
-        'me',
-        [AuthController::class, 'me']
-    );
-
-    Route::post(
-        'logout',
-        [AuthController::class, 'logout']
-    );
-
-    Route::post(
-        'update-profile',
-        [AuthController::class, 'updateProfile']
-    );
+    Route::post('login',           [AuthController::class, 'login']);
+    Route::post('register',        [AuthController::class, 'register']);
+    Route::get('me',               [AuthController::class, 'me']);
+    Route::post('logout',          [AuthController::class, 'logout']);
+    Route::post('update-profile',  [AuthController::class, 'updateProfile']);
+    Route::post('change-password', [AuthController::class, 'changePassword']);
 });
 
 Route::prefix('dashboard')->group(function () {
@@ -146,6 +125,58 @@ Route::prefix('dashboard')->group(function () {
         [DashboardController::class, 'tenant']
     );
 
+    Route::get(
+        '/worker',
+        [DashboardController::class, 'worker']
+    );
+});
+
+/*
+|--------------------------------------------------------------------------
+| Workers — public list & admin actions
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('workers')->group(function () {
+    Route::get('/',                         [WorkerController::class,       'index']);
+    Route::get('/{id}',                     [WorkerController::class,       'show']);
+    Route::patch('/{id}',                   [WorkerController::class,       'adminAction']);
+    Route::get('/{id}/unlock-status',       [WorkerUnlockController::class, 'status']);
+    Route::post('/{id}/unlock',             [WorkerUnlockController::class, 'unlock']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Worker — own profile management
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('worker')->group(function () {
+
+    Route::get(
+        '/profile',
+        [WorkerController::class, 'profile']
+    );
+
+    Route::post(
+        '/profile',
+        [WorkerController::class, 'store']
+    );
+
+    Route::put(
+        '/profile',
+        [WorkerController::class, 'update']
+    );
+});
+
+/*
+|--------------------------------------------------------------------------
+| Coupons
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('coupons')->group(function () {
+    Route::post('/validate', [CouponController::class, 'check']);
 });
 
 Route::prefix('saved-listings')->group(function () {

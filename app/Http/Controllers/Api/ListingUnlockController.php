@@ -12,6 +12,35 @@ use App\Services\CouponService;
 
 class ListingUnlockController extends Controller
 {
+    /**
+     * GET /listings/:id/unlock-status?user_id=X
+     */
+    public function status(Request $request, $id)
+    {
+        $request->validate(['user_id' => 'required|exists:users,id']);
+
+        $listing = Listing::with(['owner:id,name,phone'])->findOrFail($id);
+
+        $unlock = ListingUnlock::where('listing_id', $listing->id)
+            ->where('user_id', $request->user_id)
+            ->first();
+
+        if (!$unlock) {
+            return response()->json(['success' => true, 'data' => ['unlocked' => false]]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'unlocked'  => true,
+                'phone'     => $listing->owner?->phone,
+                'address'   => $listing->address,
+                'latitude'  => $listing->latitude,
+                'longitude' => $listing->longitude,
+            ],
+        ]);
+    }
+
     public function unlock(Request $request, $id)
     {
         $request->validate([

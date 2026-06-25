@@ -12,6 +12,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             ListingSeeder::class,
             FurnitureSeeder::class,
+            WorkerSeeder::class,
         ]);
     }
 }
