@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\WorkerController;
 use App\Http\Controllers\Api\WorkerUnlockController;
 use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\SavedListingController;
+use App\Http\Controllers\Api\SocialAuthController;
 /*
 |--------------------------------------------------------------------------
 | API Health Check
@@ -116,6 +117,30 @@ Route::prefix('auth')->group(function () {
     Route::post('logout',          [AuthController::class, 'logout']);
     Route::post('update-profile',  [AuthController::class, 'updateProfile']);
     Route::post('change-password', [AuthController::class, 'changePassword']);
+
+    // Google OAuth
+    Route::get('google',          [SocialAuthController::class, 'redirectToGoogle']);
+    Route::get('google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
+
+    // Get authenticated user profile via Sanctum token
+    Route::middleware('auth:sanctum')->get('user', function (\Illuminate\Http\Request $request) {
+        $user = $request->user();
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'user' => [
+                    'id'                => $user->id,
+                    'name'              => $user->name,
+                    'phone'             => $user->phone,
+                    'email'             => $user->email,
+                    'role'              => $user->role,
+                    'credit_balance'    => $user->credit_balance ?? 0,
+                    'is_verified'       => $user->is_verified,
+                    'profile_photo_url' => $user->profile_photo_url,
+                ]
+            ]
+        ]);
+    });
 });
 
 Route::prefix('dashboard')->group(function () {

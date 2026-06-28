@@ -123,6 +123,7 @@ class AuthController extends Controller
             'user_id' => 'required|exists:users,id',
             'name'    => 'required|string|max:255',
             'email'   => 'nullable|email|max:255',
+            'phone'   => 'nullable|digits:10|unique:users,phone,' . $request->user_id,
         ]);
 
         $user = User::findOrFail($request->user_id);
@@ -130,6 +131,7 @@ class AuthController extends Controller
         $user->update([
             'name'  => $request->name,
             'email' => $request->email,
+            'phone' => $request->phone,
         ]);
 
         return response()->json([

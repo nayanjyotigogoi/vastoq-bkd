@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Listing;
 use App\Models\ListingUnlock;
@@ -13,7 +14,7 @@ use Filament\Models\Contracts\FilamentUser;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
         'name',
@@ -25,6 +26,7 @@ class User extends Authenticatable
         'is_blocked',
         'is_verified',
         'profile_photo_url',
+        'google_id',
     ];
 
     protected $hidden = [
