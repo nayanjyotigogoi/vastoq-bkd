@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\ListingUnlockController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\WorkerController;
 use App\Http\Controllers\Api\WorkerUnlockController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\SavedListingController;
 use App\Http\Controllers\Api\SocialAuthController;
@@ -28,6 +29,22 @@ Route::get('/', function () {
 
 /*
 |--------------------------------------------------------------------------
+| Prices (public)
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/prices', function () {
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'listing_unlock' => config('prices.listing_unlock.amount'),
+            'worker_unlock'  => config('prices.worker_unlock.amount'),
+        ],
+    ]);
+});
+
+/*
+|--------------------------------------------------------------------------
 | Listings
 |--------------------------------------------------------------------------
 */
@@ -40,11 +57,15 @@ Route::prefix('listings')->group(function () {
 
     Route::get('/my-listings', [ListingController::class, 'myListings']);
 
-    Route::get('/{id}', [ListingController::class, 'show']);
+    // Razorpay payment routes — MUST come before {id} routes
+    Route::post('/{id}/create-unlock-order', [PaymentController::class, 'createListingUnlockOrder']);
+    Route::post('/{id}/verify-unlock-payment', [PaymentController::class, 'verifyListingUnlockPayment']);
 
     Route::get('/{id}/unlock-status', [ListingUnlockController::class, 'status']);
 
     Route::post('/{id}/unlock',       [ListingUnlockController::class, 'unlock']);
+
+    Route::get('/{id}', [ListingController::class, 'show']);
 
     Route::put('/{id}', [ListingController::class, 'update']);
 
@@ -163,11 +184,16 @@ Route::prefix('dashboard')->group(function () {
 */
 
 Route::prefix('workers')->group(function () {
-    Route::get('/',                         [WorkerController::class,       'index']);
-    Route::get('/{id}',                     [WorkerController::class,       'show']);
-    Route::patch('/{id}',                   [WorkerController::class,       'adminAction']);
-    Route::get('/{id}/unlock-status',       [WorkerUnlockController::class, 'status']);
-    Route::post('/{id}/unlock',             [WorkerUnlockController::class, 'unlock']);
+    Route::get('/', [WorkerController::class, 'index']);
+
+    // Razorpay payment routes — MUST come before {id} routes
+    Route::post('/{id}/create-unlock-order', [PaymentController::class, 'createWorkerUnlockOrder']);
+    Route::post('/{id}/verify-unlock-payment', [PaymentController::class, 'verifyWorkerUnlockPayment']);
+
+    Route::get('/{id}/unlock-status', [WorkerUnlockController::class, 'status']);
+    Route::post('/{id}/unlock', [WorkerUnlockController::class, 'unlock']);
+    Route::get('/{id}', [WorkerController::class, 'show']);
+    Route::patch('/{id}', [WorkerController::class, 'adminAction']);
 });
 
 /*

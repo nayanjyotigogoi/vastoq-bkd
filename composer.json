@@ -13,6 +13,7 @@
         "laravel/sanctum": "^2.14",
         "laravel/socialite": "*",
         "laravel/tinker": "^2.7",
+        "razorpay/razorpay": "^2.9",
         "tymon/jwt-auth": "^2.3"
     },
     "require-dev": {
