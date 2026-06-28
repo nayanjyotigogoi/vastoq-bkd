@@ -14,8 +14,11 @@ class SocialAuthController extends Controller
      * GET /api/auth/google
      * Redirect the browser to Google's OAuth consent screen.
      */
-    public function redirectToGoogle()
+    public function redirectToGoogle(\Illuminate\Http\Request $request)
     {
+        if ($request->has('role')) {
+            session(['google_register_role' => $request->role]);
+        }
         return Socialite::driver('google')->stateless()->redirect();
     }
 
@@ -32,6 +35,7 @@ class SocialAuthController extends Controller
 
             // 1. Try to find by google_id first (fastest path for returning users)
             $user = User::where('google_id', $googleUser->id)->first();
+            $isNew = false;
 
             if (!$user) {
                 // 2. Try to find by email (user already has a phone/password account)
@@ -45,15 +49,31 @@ class SocialAuthController extends Controller
                     ]);
                 } else {
                     // 3. Brand-new user — create with defaults suitable for Vastoq
-                    $user = User::create([
-                        'name'              => $googleUser->name,
-                        'email'             => $googleUser->email,
-                        'google_id'         => $googleUser->id,
-                        'profile_photo_url' => $googleUser->avatar,
-                        'password'          => bcrypt(Str::random(24)), // unusable random password
-                        'role'              => 'tenant',                 // default role
-                        'is_verified'       => true,
-                    ]);
+                    $role = session('google_register_role');
+                    session()->forget('google_register_role');
+
+                    if ($role) {
+                        $user = User::create([
+                            'name'              => $googleUser->name,
+                            'email'             => $googleUser->email,
+                            'google_id'         => $googleUser->id,
+                            'profile_photo_url' => $googleUser->avatar,
+                            'password'          => bcrypt(Str::random(24)), // unusable random password
+                            'role'              => $role,
+                            'is_verified'       => true,
+                        ]);
+                    } else {
+                        $user = User::create([
+                            'name'              => $googleUser->name,
+                            'email'             => $googleUser->email,
+                            'google_id'         => $googleUser->id,
+                            'profile_photo_url' => $googleUser->avatar,
+                            'password'          => bcrypt(Str::random(24)), // unusable random password
+                            'role'              => 'tenant',                 // default role
+                            'is_verified'       => true,
+                        ]);
+                        $isNew = true;
+                    }
                 }
             }
 
@@ -68,7 +88,11 @@ class SocialAuthController extends Controller
 
             // Redirect to the Next.js callback page with the token
             $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
-            return redirect($frontendUrl . '/auth/google/callback?token=' . $token);
+            $redirectUrl = $frontendUrl . '/auth/google/callback?token=' . $token;
+            if ($isNew) {
+                $redirectUrl .= '&is_new=1';
+            }
+            return redirect($redirectUrl);
 
         } catch (\Exception $e) {
             Log::error('GOOGLE_AUTH: callback failed', ['error' => $e->getMessage()]);

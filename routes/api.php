@@ -139,28 +139,44 @@ Route::prefix('auth')->group(function () {
     Route::post('update-profile',  [AuthController::class, 'updateProfile']);
     Route::post('change-password', [AuthController::class, 'changePassword']);
 
-    // Google OAuth
-    Route::get('google',          [SocialAuthController::class, 'redirectToGoogle']);
-    Route::get('google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
+    // Google OAuth (wrapped with session middleware to support role state)
+    Route::middleware([\Illuminate\Session\Middleware\StartSession::class])->group(function () {
+        Route::get('google',          [SocialAuthController::class, 'redirectToGoogle']);
+        Route::get('google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
+    });
 
-    // Get authenticated user profile via Sanctum token
-    Route::middleware('auth:sanctum')->get('user', function (\Illuminate\Http\Request $request) {
-        $user = $request->user();
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'user' => [
-                    'id'                => $user->id,
-                    'name'              => $user->name,
-                    'phone'             => $user->phone,
-                    'email'             => $user->email,
-                    'role'              => $user->role,
-                    'credit_balance'    => $user->credit_balance ?? 0,
-                    'is_verified'       => $user->is_verified,
-                    'profile_photo_url' => $user->profile_photo_url,
+    // Get authenticated user profile and manage role via Sanctum token
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('user', function (\Illuminate\Http\Request $request) {
+            $user = $request->user();
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user' => [
+                        'id'                => $user->id,
+                        'name'              => $user->name,
+                        'phone'             => $user->phone,
+                        'email'             => $user->email,
+                        'role'              => $user->role,
+                        'credit_balance'    => $user->credit_balance ?? 0,
+                        'is_verified'       => $user->is_verified,
+                        'profile_photo_url' => $user->profile_photo_url,
+                    ]
                 ]
-            ]
-        ]);
+            ]);
+        });
+
+        Route::post('update-role', function (\Illuminate\Http\Request $request) {
+            $request->validate([
+                'role' => 'required|in:tenant,owner,worker',
+            ]);
+            $user = $request->user();
+            $user->update(['role' => $request->role]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Role updated successfully.'
+            ]);
+        });
     });
 });
 
