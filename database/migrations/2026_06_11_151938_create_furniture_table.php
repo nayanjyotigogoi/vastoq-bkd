@@ -1,33 +1,27 @@
 <?php
 
-namespace App\Models;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-
-class Furniture extends Model
+return new class extends Migration
 {
-    use HasFactory;
-
-    protected $table = 'furniture';
-
-    protected $fillable = [
-        'name',
-        'category',
-        'description',
-        'price_per_month',
-        'image_url',
-        'is_available',
-    ];
-
-    protected $casts = [
-        'is_available' => 'boolean',
-    ];
-
-    public function enquiries()
+    public function up(): void
     {
-        return $this->hasMany(
-            FurnitureEnquiry::class
-        );
+        Schema::create('furniture', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('category');
+            $table->text('description')->nullable();
+            $table->decimal('price_per_month', 10, 2);
+            $table->string('image_url')->nullable();
+            $table->boolean('is_available')->default(true);
+            $table->timestamps();
+        });
     }
-}
+
+    public function down(): void
+    {
+        Schema::dropIfExists('furniture');
+    }
+};

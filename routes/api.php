@@ -10,8 +10,10 @@ use App\Http\Controllers\Api\ListingUnlockController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\WorkerController;
 use App\Http\Controllers\Api\WorkerUnlockController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\SavedListingController;
+use App\Http\Controllers\Api\SocialAuthController;
 /*
 |--------------------------------------------------------------------------
 | API Health Check
@@ -22,6 +24,22 @@ Route::get('/', function () {
     return response()->json([
         'success' => true,
         'message' => 'Vastoq API is running.'
+    ]);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Prices (public)
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/prices', function () {
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'listing_unlock' => config('prices.listing_unlock.amount'),
+            'worker_unlock'  => config('prices.worker_unlock.amount'),
+        ],
     ]);
 });
 
@@ -39,11 +57,15 @@ Route::prefix('listings')->group(function () {
 
     Route::get('/my-listings', [ListingController::class, 'myListings']);
 
-    Route::get('/{id}', [ListingController::class, 'show']);
+    // Razorpay payment routes — MUST come before {id} routes
+    Route::post('/{id}/create-unlock-order', [PaymentController::class, 'createListingUnlockOrder']);
+    Route::post('/{id}/verify-unlock-payment', [PaymentController::class, 'verifyListingUnlockPayment']);
 
     Route::get('/{id}/unlock-status', [ListingUnlockController::class, 'status']);
 
     Route::post('/{id}/unlock',       [ListingUnlockController::class, 'unlock']);
+
+    Route::get('/{id}', [ListingController::class, 'show']);
 
     Route::put('/{id}', [ListingController::class, 'update']);
 
@@ -116,6 +138,46 @@ Route::prefix('auth')->group(function () {
     Route::post('logout',          [AuthController::class, 'logout']);
     Route::post('update-profile',  [AuthController::class, 'updateProfile']);
     Route::post('change-password', [AuthController::class, 'changePassword']);
+
+    // Google OAuth (wrapped with session middleware to support role state)
+    Route::middleware([\Illuminate\Session\Middleware\StartSession::class])->group(function () {
+        Route::get('google',          [SocialAuthController::class, 'redirectToGoogle']);
+        Route::get('google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
+    });
+
+    // Get authenticated user profile and manage role via Sanctum token
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('user', function (\Illuminate\Http\Request $request) {
+            $user = $request->user();
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user' => [
+                        'id'                => $user->id,
+                        'name'              => $user->name,
+                        'phone'             => $user->phone,
+                        'email'             => $user->email,
+                        'role'              => $user->role,
+                        'credit_balance'    => $user->credit_balance ?? 0,
+                        'is_verified'       => $user->is_verified,
+                        'profile_photo_url' => $user->profile_photo_url,
+                    ]
+                ]
+            ]);
+        });
+
+        Route::post('update-role', function (\Illuminate\Http\Request $request) {
+            $request->validate([
+                'role' => 'required|in:tenant,owner,worker',
+            ]);
+            $user = $request->user();
+            $user->update(['role' => $request->role]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Role updated successfully.'
+            ]);
+        });
+    });
 });
 
 Route::prefix('dashboard')->group(function () {
@@ -138,11 +200,16 @@ Route::prefix('dashboard')->group(function () {
 */
 
 Route::prefix('workers')->group(function () {
-    Route::get('/',                         [WorkerController::class,       'index']);
-    Route::get('/{id}',                     [WorkerController::class,       'show']);
-    Route::patch('/{id}',                   [WorkerController::class,       'adminAction']);
-    Route::get('/{id}/unlock-status',       [WorkerUnlockController::class, 'status']);
-    Route::post('/{id}/unlock',             [WorkerUnlockController::class, 'unlock']);
+    Route::get('/', [WorkerController::class, 'index']);
+
+    // Razorpay payment routes — MUST come before {id} routes
+    Route::post('/{id}/create-unlock-order', [PaymentController::class, 'createWorkerUnlockOrder']);
+    Route::post('/{id}/verify-unlock-payment', [PaymentController::class, 'verifyWorkerUnlockPayment']);
+
+    Route::get('/{id}/unlock-status', [WorkerUnlockController::class, 'status']);
+    Route::post('/{id}/unlock', [WorkerUnlockController::class, 'unlock']);
+    Route::get('/{id}', [WorkerController::class, 'show']);
+    Route::patch('/{id}', [WorkerController::class, 'adminAction']);
 });
 
 /*

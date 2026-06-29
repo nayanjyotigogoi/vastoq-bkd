@@ -99,6 +99,22 @@ class ListingController extends Controller
         $perPage = min((int) $request->get('per_page', 20), 500);
         $listings = $query->paginate($perPage);
 
+        // Add is_saved field when a user_id is provided (passed by Next.js API layer)
+        $userId = $request->get('user_id');
+        if ($userId) {
+            $savedListingIds = \App\Models\SavedListing::where('user_id', $userId)
+                ->pluck('listing_id')
+                ->toArray();
+
+            foreach ($listings as $listing) {
+                $listing['is_saved'] = in_array($listing->id, $savedListingIds);
+            }
+        } else {
+            foreach ($listings as $listing) {
+                $listing['is_saved'] = false;
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data' => $listings
