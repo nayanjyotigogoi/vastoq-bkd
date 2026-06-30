@@ -15,25 +15,18 @@ class ListingController extends Controller
      */
     public function index(Request $request)
     {
+        // Lazily expire boosts whose window has passed — cheap indexed write,
+        // avoids needing a scheduler/cron for this.
+        Listing::where('is_featured', true)
+            ->where('featured_until', '<', now())
+            ->update(['is_featured' => false, 'featured_until' => null]);
 
-    
         $query = Listing::with([
             'owner:id,name,is_verified,profile_photo_url'
         ])->where('status', 'approved');
 
         if ($request->filled('search')) {
-
-            $search = trim($request->search);
-
-            $query->where(function ($q) use ($search) {
-
-                $q->where('title', 'LIKE', "%{$search}%")
-                ->orWhere('city', 'LIKE', "%{$search}%")
-                ->orWhere('locality', 'LIKE', "%{$search}%")
-                ->orWhere('address', 'LIKE', "%{$search}%")
-                ->orWhere('pincode', 'LIKE', "%{$search}%")
-                ->orWhere('description', 'LIKE', "%{$search}%");
-            });
+            $this->applySearchFilter($query, trim($request->search));
         }
 
         if ($request->filled('property_type')) {
@@ -78,6 +71,10 @@ class ListingController extends Controller
             });
         }
 
+        if ($request->has('is_featured')) {
+            $query->where('is_featured', $request->boolean('is_featured'));
+        }
+
         switch ($request->sort) {
 
             case 'price_asc':
@@ -93,25 +90,32 @@ class ListingController extends Controller
                 break;
 
             default:
-                $query->latest();
+                // Boosted listings float to the top, newest first within each group.
+                $query->orderByDesc('is_featured')->latest();
         }
 
         $perPage = min((int) $request->get('per_page', 20), 500);
         $listings = $query->paginate($perPage);
 
-        // Add is_saved field when a user_id is provided (passed by Next.js API layer)
+        // Add is_saved / is_unlocked fields when a user_id is provided (passed by Next.js API layer)
         $userId = $request->get('user_id');
         if ($userId) {
             $savedListingIds = \App\Models\SavedListing::where('user_id', $userId)
                 ->pluck('listing_id')
                 ->toArray();
 
+            $unlockedListingIds = \App\Models\ListingUnlock::where('user_id', $userId)
+                ->pluck('listing_id')
+                ->toArray();
+
             foreach ($listings as $listing) {
-                $listing['is_saved'] = in_array($listing->id, $savedListingIds);
+                $listing['is_saved']    = in_array($listing->id, $savedListingIds);
+                $listing['is_unlocked'] = in_array($listing->id, $unlockedListingIds);
             }
         } else {
             foreach ($listings as $listing) {
-                $listing['is_saved'] = false;
+                $listing['is_saved']    = false;
+                $listing['is_unlocked'] = false;
             }
         }
 
@@ -119,6 +123,48 @@ class ListingController extends Controller
             'success' => true,
             'data' => $listings
         ]);
+    }
+
+    /**
+     * Progressive search: try the full term first, then drop the last word
+     * one at a time until at least one listing matches — all within a single
+     * request/response cycle (no client-side round trips).
+     *
+     * e.g. "Dibrugarh West Chariali" → 0 hits → "Dibrugarh West" → 0 hits → "Dibrugarh" → hits ✓
+     *
+     * Note: `description` is intentionally excluded from the match — it's a
+     * large text blob that rarely contains useful unique search terms and
+     * costs noticeably more per-row to scan than the short indexed columns.
+     */
+    private function applySearchFilter($query, string $rawSearch): void
+    {
+        $words = array_values(array_filter(explode(' ', $rawSearch)));
+
+        while (count($words) > 0) {
+            $term = implode(' ', $words);
+            $like = '%' . $term . '%';
+
+            $count = (clone $query)->where(function ($q) use ($like) {
+                $q->where('title', 'LIKE', $like)
+                  ->orWhere('city', 'LIKE', $like)
+                  ->orWhere('locality', 'LIKE', $like)
+                  ->orWhere('address', 'LIKE', $like)
+                  ->orWhere('pincode', 'LIKE', $like);
+            })->count();
+
+            if ($count > 0 || count($words) === 1) {
+                $query->where(function ($q) use ($like) {
+                    $q->where('title', 'LIKE', $like)
+                      ->orWhere('city', 'LIKE', $like)
+                      ->orWhere('locality', 'LIKE', $like)
+                      ->orWhere('address', 'LIKE', $like)
+                      ->orWhere('pincode', 'LIKE', $like);
+                });
+                return;
+            }
+
+            array_pop($words);
+        }
     }
 
     /**

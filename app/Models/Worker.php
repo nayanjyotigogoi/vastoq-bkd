@@ -25,6 +25,11 @@ class Worker extends Model
         'jobs_completed',
         'is_verified',
         'aadhaar_status',
+        'aadhaar_number',
+        'aadhaar_front_url',
+        'aadhaar_back_url',
+        'aadhaar_submitted_at',
+        'aadhaar_rejection_reason',
         'is_active',
         'available_today',
         'service_areas',
@@ -42,6 +47,7 @@ class Worker extends Model
         'is_active'     => 'boolean',
         'available_today' => 'boolean',
         'rating'        => 'float',
+        'aadhaar_submitted_at' => 'datetime',
     ];
 
     public function user()

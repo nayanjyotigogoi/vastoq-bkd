@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\SavedListingController;
 use App\Http\Controllers\Api\SocialAuthController;
+use App\Http\Controllers\Api\UploadController;
 /*
 |--------------------------------------------------------------------------
 | API Health Check
@@ -39,6 +40,8 @@ Route::get('/prices', function () {
         'data' => [
             'listing_unlock' => config('prices.listing_unlock.amount'),
             'worker_unlock'  => config('prices.worker_unlock.amount'),
+            'listing_boost'  => config('prices.listing_boost.amount'),
+            'listing_boost_duration_days' => config('prices.listing_boost.duration_days'),
         ],
     ]);
 });
@@ -60,6 +63,8 @@ Route::prefix('listings')->group(function () {
     // Razorpay payment routes — MUST come before {id} routes
     Route::post('/{id}/create-unlock-order', [PaymentController::class, 'createListingUnlockOrder']);
     Route::post('/{id}/verify-unlock-payment', [PaymentController::class, 'verifyListingUnlockPayment']);
+    Route::post('/{id}/create-boost-order', [PaymentController::class, 'createListingBoostOrder']);
+    Route::post('/{id}/verify-boost-payment', [PaymentController::class, 'verifyListingBoostPayment']);
 
     Route::get('/{id}/unlock-status', [ListingUnlockController::class, 'status']);
 
@@ -234,6 +239,11 @@ Route::prefix('worker')->group(function () {
         '/profile',
         [WorkerController::class, 'update']
     );
+
+    Route::post(
+        '/aadhaar',
+        [WorkerController::class, 'submitAadhaar']
+    );
 });
 
 /*
@@ -244,6 +254,17 @@ Route::prefix('worker')->group(function () {
 
 Route::prefix('coupons')->group(function () {
     Route::post('/validate', [CouponController::class, 'check']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Uploads — listing photos & profile photos
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('uploads')->group(function () {
+    Route::post('/listing-photos', [UploadController::class, 'listingPhotos']);
+    Route::post('/profile-photo',  [UploadController::class, 'profilePhoto']);
 });
 
 Route::prefix('saved-listings')->group(function () {
