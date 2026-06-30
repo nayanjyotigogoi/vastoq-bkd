@@ -107,6 +107,8 @@ class PaymentController extends Controller
                 'expires_at'  => now()->addDays(30),
             ]);
 
+            $listing->increment('unlock_count');
+
             return response()->json(['success' => true, 'message' => 'Payment successful! Details unlocked.', 'data' => [
                 'phone'     => $listing->owner?->phone,
                 'address'   => $listing->address,
@@ -115,6 +117,106 @@ class PaymentController extends Controller
             ]]);
         } catch (\Throwable $e) {
             Log::error('[LISTING:PAYMENT] Verification Failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function createListingBoostOrder(Request $request, $id)
+    {
+        Log::info('[LISTING:BOOST] Create Order Attempt', ['listing_id' => $id]);
+        try {
+            $request->validate(['user_id' => 'required|exists:users,id']);
+            $listing = Listing::findOrFail($id);
+            $user    = User::findOrFail($request->user_id);
+
+            if ((int) $listing->owner_id !== (int) $user->id) {
+                return response()->json(['success' => false, 'message' => 'Only the listing owner can boost this listing.'], 403);
+            }
+
+            if ($listing->is_featured && $listing->featured_until && $listing->featured_until->isFuture()) {
+                return response()->json(['success' => false, 'message' => 'This listing is already boosted.'], 400);
+            }
+
+            $api         = new Api(env('RAZORPAY_KEY_ID'), env('RAZORPAY_KEY_SECRET'));
+            $priceConfig = config('prices.listing_boost');
+            $amount      = $priceConfig['amount'] * 100;
+
+            $razorpayOrder = $api->order->create([
+                'receipt'  => (string) Str::uuid(),
+                'amount'   => $amount,
+                'currency' => $priceConfig['currency'],
+                'notes'    => ['listing_id' => $listing->id, 'user_id' => $user->id, 'type' => 'listing_boost'],
+            ]);
+
+            Transaction::create([
+                'id'                => (string) Str::uuid(),
+                'user_id'           => $user->id,
+                'listing_id'        => $listing->id,
+                'amount_cents'      => $amount,
+                'currency'          => $priceConfig['currency'],
+                'razorpay_order_id' => $razorpayOrder['id'],
+                'status'            => 'created',
+            ]);
+
+            return response()->json([
+                'success'  => true,
+                'order_id' => $razorpayOrder['id'],
+                'amount'   => $amount,
+                'currency' => 'INR',
+                'key_id'   => env('RAZORPAY_KEY_ID'),
+                'contact'  => $user->email,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[LISTING:BOOST] Order Creation Failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function verifyListingBoostPayment(Request $request, $id)
+    {
+        Log::info('[LISTING:BOOST] Verification Attempt', ['listing_id' => $id]);
+        try {
+            $request->validate([
+                'user_id'             => 'required|exists:users,id',
+                'razorpay_payment_id' => 'required|string',
+                'razorpay_order_id'   => 'required|string',
+                'razorpay_signature'  => 'required|string',
+            ]);
+            $listing = Listing::findOrFail($id);
+            $user    = User::findOrFail($request->user_id);
+
+            if ((int) $listing->owner_id !== (int) $user->id) {
+                return response()->json(['success' => false, 'message' => 'Only the listing owner can boost this listing.'], 403);
+            }
+
+            $api = new Api(env('RAZORPAY_KEY_ID'), env('RAZORPAY_KEY_SECRET'));
+            $api->utility->verifyPaymentSignature([
+                'razorpay_order_id'   => $request->razorpay_order_id,
+                'razorpay_payment_id' => $request->razorpay_payment_id,
+                'razorpay_signature'  => $request->razorpay_signature,
+            ]);
+
+            $txn = Transaction::where('razorpay_order_id', $request->razorpay_order_id)->first();
+            if ($txn) {
+                $txn->update([
+                    'razorpay_payment_id' => $request->razorpay_payment_id,
+                    'razorpay_signature'  => $request->razorpay_signature,
+                    'status'              => 'paid',
+                ]);
+            }
+
+            $priceConfig = config('prices.listing_boost');
+            $listing->update([
+                'is_featured'    => true,
+                'featured_until' => now()->addDays($priceConfig['duration_days']),
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Listing boosted! It will be featured for ' . $priceConfig['duration_days'] . ' days.', 'data' => [
+                'is_featured'    => true,
+                'featured_until' => $listing->featured_until,
+            ]]);
+        } catch (\Throwable $e) {
+            Log::error('[LISTING:BOOST] Verification Failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -207,6 +309,8 @@ class PaymentController extends Controller
                 'amount_paid' => $priceConfig['amount'],
                 'expires_at'  => now()->addDays(30),
             ]);
+
+            $worker->increment('contact_unlocks');
 
             return response()->json(['success' => true, 'message' => 'Payment successful! Details unlocked.',
                 'data' => ['phone' => $worker->user?->phone, 'service_area' => $worker->locality]]);

@@ -18,10 +18,11 @@ class WorkerController extends Controller
             ->where('is_active', true);
 
         if ($request->filled('search')) {
+            // `bio` intentionally excluded — a large text field that's costly
+            // to scan and rarely contains useful unique search terms.
             $s = '%' . $request->search . '%';
             $query->where(function ($q) use ($s) {
                 $q->where('category', 'like', $s)
-                  ->orWhere('bio', 'like', $s)
                   ->orWhere('city', 'like', $s)
                   ->orWhere('locality', 'like', $s)
                   ->orWhereHas('user', fn ($u) => $u->where('name', 'like', $s));
@@ -82,13 +83,22 @@ class WorkerController extends Controller
     {
         $request->validate([
             'action' => 'required|in:verify,deactivate,activate,reject_aadhaar',
+            'reason' => 'nullable|string|max:500',
         ]);
 
         $worker = Worker::findOrFail($id);
 
         match ($request->action) {
-            'verify'         => $worker->update(['is_verified' => true,  'aadhaar_status' => 'verified']),
-            'reject_aadhaar' => $worker->update(['is_verified' => false, 'aadhaar_status' => 'rejected']),
+            'verify'         => $worker->update([
+                'is_verified'              => true,
+                'aadhaar_status'           => 'verified',
+                'aadhaar_rejection_reason' => null,
+            ]),
+            'reject_aadhaar' => $worker->update([
+                'is_verified'              => false,
+                'aadhaar_status'           => 'rejected',
+                'aadhaar_rejection_reason' => $request->reason ?? 'Documents did not pass verification.',
+            ]),
             'deactivate'     => $worker->update(['is_active' => false]),
             'activate'       => $worker->update(['is_active' => true]),
             default          => null,
@@ -218,6 +228,54 @@ class WorkerController extends Controller
         ]);
     }
 
+    /**
+     * POST /worker/aadhaar
+     * Submit (or resubmit) Aadhaar documents for verification.
+     * Expects front_url/back_url already uploaded via /uploads/profile-photo.
+     */
+    public function submitAadhaar(Request $request)
+    {
+        $request->validate([
+            'user_id'        => 'required|exists:users,id',
+            'aadhaar_number' => 'nullable|digits:12',
+            'front_url'      => 'required|url',
+            'back_url'       => 'required|url',
+        ]);
+
+        $worker = Worker::where('user_id', $request->user_id)->first();
+
+        if (!$worker) {
+            return response()->json([
+                'success' => false,
+                'error'   => ['message' => 'Worker profile not found.'],
+            ], 404);
+        }
+
+        if ($worker->aadhaar_status === 'verified') {
+            return response()->json([
+                'success' => false,
+                'error'   => ['message' => 'This worker is already verified.'],
+            ], 409);
+        }
+
+        $worker->update([
+            'aadhaar_number'           => $request->aadhaar_number,
+            'aadhaar_front_url'        => $request->front_url,
+            'aadhaar_back_url'         => $request->back_url,
+            'aadhaar_status'           => 'pending',
+            'aadhaar_submitted_at'     => now(),
+            'aadhaar_rejection_reason' => null,
+        ]);
+
+        $worker->load('user');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Aadhaar documents submitted. Review usually takes 24-48 hours.',
+            'data'    => ['worker' => $this->format($worker)],
+        ]);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
@@ -273,8 +331,12 @@ class WorkerController extends Controller
             'view_count'      => $worker->view_count,
             'contact_unlocks' => $worker->contact_unlocks,
             'jobs_completed'  => $worker->jobs_completed,
-            'is_verified'     => $worker->is_verified,
-            'aadhaar_status'  => $worker->aadhaar_status,
+            'is_verified'              => $worker->is_verified,
+            'aadhaar_status'           => $worker->aadhaar_status,
+            'aadhaar_front_url'        => $worker->aadhaar_front_url,
+            'aadhaar_back_url'         => $worker->aadhaar_back_url,
+            'aadhaar_submitted_at'     => $worker->aadhaar_submitted_at,
+            'aadhaar_rejection_reason' => $worker->aadhaar_rejection_reason,
             'is_active'       => $worker->is_active,
             'available_today' => $worker->available_today,
             'service_areas'   => $worker->service_areas ?? [],

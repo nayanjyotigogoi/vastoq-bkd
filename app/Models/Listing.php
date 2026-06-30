@@ -30,6 +30,7 @@ class Listing extends Model
         'status',
         'is_broker',
         'is_featured',
+        'featured_until',
         'area_sqft',
         'floor_number',
         'gender_preference',
@@ -44,6 +45,7 @@ class Listing extends Model
         'photos' => 'array',
         'is_broker' => 'boolean',
         'is_featured' => 'boolean',
+        'featured_until' => 'datetime',
         'admin_reviewed_at' => 'datetime',
     ];
 
