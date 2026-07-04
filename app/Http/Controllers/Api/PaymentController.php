@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\ListingBoostedMail;
+use App\Mail\ListingUnlockedOwnerMail;
+use App\Mail\ListingUnlockedUserMail;
+use App\Mail\WorkerUnlockedMail;
 use App\Models\Listing;
 use App\Models\ListingUnlock;
 use App\Models\Worker;
@@ -13,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Razorpay\Api\Api;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class PaymentController extends Controller
 {
@@ -108,6 +113,18 @@ class PaymentController extends Controller
             ]);
 
             $listing->increment('unlock_count');
+
+            // Email: notify tenant with owner details
+            if ($user->email) {
+                try { Mail::to($user->email)->send(new ListingUnlockedUserMail($user, $listing->load('owner'))); }
+                catch (\Throwable $e) { Log::error('[LISTING:UNLOCK] User email failed', ['error' => $e->getMessage()]); }
+            }
+            // Email: notify owner that someone contacted them
+            $owner = $listing->owner;
+            if ($owner && $owner->email) {
+                try { Mail::to($owner->email)->send(new ListingUnlockedOwnerMail($owner, $listing, $user)); }
+                catch (\Throwable $e) { Log::error('[LISTING:UNLOCK] Owner email failed', ['error' => $e->getMessage()]); }
+            }
 
             return response()->json(['success' => true, 'message' => 'Payment successful! Details unlocked.', 'data' => [
                 'phone'     => $listing->owner?->phone,
@@ -211,6 +228,12 @@ class PaymentController extends Controller
                 'featured_until' => now()->addDays($priceConfig['duration_days']),
             ]);
 
+            // Email: confirm boost to owner
+            if ($user->email) {
+                try { Mail::to($user->email)->send(new ListingBoostedMail($user, $listing->fresh(), $priceConfig['duration_days'])); }
+                catch (\Throwable $e) { Log::error('[LISTING:BOOST] Email failed', ['error' => $e->getMessage()]); }
+            }
+
             return response()->json(['success' => true, 'message' => 'Listing boosted! It will be featured for ' . $priceConfig['duration_days'] . ' days.', 'data' => [
                 'is_featured'    => true,
                 'featured_until' => $listing->featured_until,
@@ -311,6 +334,13 @@ class PaymentController extends Controller
             ]);
 
             $worker->increment('contact_unlocks');
+
+            // Email: notify worker that someone viewed their contact
+            $workerUser = $worker->user;
+            if ($workerUser && $workerUser->email) {
+                try { Mail::to($workerUser->email)->send(new WorkerUnlockedMail($workerUser, $worker)); }
+                catch (\Throwable $e) { Log::error('[WORKER:UNLOCK] Email failed', ['error' => $e->getMessage()]); }
+            }
 
             return response()->json(['success' => true, 'message' => 'Payment successful! Details unlocked.',
                 'data' => ['phone' => $worker->user?->phone, 'service_area' => $worker->locality]]);

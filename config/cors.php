@@ -15,11 +15,17 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*', 'sanctum/csrf-cookie', 'login',
+        'logout'],
 
     'allowed_methods' => ['*'],
 
     'allowed_origins' => [
+        
+    // Frontend production domain
+        'https://myadkaro.online',
+        'https://www.myadkaro.online',
+
         'http://localhost:3000',
     ],
 
@@ -31,6 +37,6 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => false,
+    'supports_credentials' => true,
 
 ];
