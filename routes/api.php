@@ -150,38 +150,59 @@ Route::prefix('auth')->group(function () {
         Route::get('google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
     });
 
-    // Get authenticated user profile and manage role via Sanctum token
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::get('user', function (\Illuminate\Http\Request $request) {
-            $user = $request->user();
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'user' => [
-                        'id'                => $user->id,
-                        'name'              => $user->name,
-                        'phone'             => $user->phone,
-                        'email'             => $user->email,
-                        'role'              => $user->role,
-                        'credit_balance'    => $user->credit_balance ?? 0,
-                        'is_verified'       => $user->is_verified,
-                        'profile_photo_url' => $user->profile_photo_url,
-                    ]
-                ]
-            ]);
-        });
+    // Exchange a short-lived HMAC-signed Google token for user data.
+    // No Bearer token / Sanctum needed — verified server-side with APP_KEY.
+    Route::post('google/exchange', function (\Illuminate\Http\Request $request) {
+        $request->validate(['token' => 'required|string', 'role' => 'nullable|in:tenant,owner,worker']);
 
-        Route::post('update-role', function (\Illuminate\Http\Request $request) {
-            $request->validate([
-                'role' => 'required|in:tenant,owner,worker',
-            ]);
-            $user = $request->user();
+        $raw = base64_decode(urldecode($request->token));
+        // Format: user_id|expiry|hmac_sig
+        $parts = explode('|', $raw, 3);
+        if (count($parts) !== 3) {
+            return response()->json(['success' => false, 'error' => ['message' => 'Malformed token']], 400);
+        }
+
+        [$userId, $expiry, $sig] = $parts;
+
+        // 1. Check expiry (5-minute window)
+        if (time() > (int)$expiry) {
+            return response()->json(['success' => false, 'error' => ['message' => 'Token expired']], 401);
+        }
+
+        // 2. Verify HMAC signature
+        $appKey   = config('app.key');
+        $expected = hash_hmac('sha256', $userId . '|' . $expiry, $appKey);
+        if (!hash_equals($expected, $sig)) {
+            return response()->json(['success' => false, 'error' => ['message' => 'Invalid token signature']], 401);
+        }
+
+        // 3. Fetch user
+        $user = \App\Models\User::find((int)$userId);
+        if (!$user) {
+            return response()->json(['success' => false, 'error' => ['message' => 'User not found']], 404);
+        }
+
+        // 4. Optionally update role (for new users choosing a role)
+        if ($request->role) {
             $user->update(['role' => $request->role]);
-            return response()->json([
-                'success' => true,
-                'message' => 'Role updated successfully.'
-            ]);
-        });
+            $user->refresh();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'user' => [
+                    'id'                => $user->id,
+                    'name'              => $user->name,
+                    'phone'             => $user->phone,
+                    'email'             => $user->email,
+                    'role'              => $user->role,
+                    'credit_balance'    => $user->credit_balance ?? 0,
+                    'is_verified'       => $user->is_verified,
+                    'profile_photo_url' => $user->profile_photo_url,
+                ]
+            ]
+        ]);
     });
 });
 

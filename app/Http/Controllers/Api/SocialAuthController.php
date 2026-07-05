@@ -80,15 +80,21 @@ class SocialAuthController extends Controller
             // Block check
             if ($user->is_blocked) {
                 $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
-                return redirect($frontendUrl . '/login?error=blocked');
+                return redirect($frontendUrl . '/auth/google/callback?error=blocked');
             }
 
-            // Generate a Sanctum personal-access token
-            $token = $user->createToken('google_oauth')->plainTextToken;
+            // Generate a short-lived HMAC-signed token (expires in 5 min)
+            // Format: base64(user_id|expiry|hmac_sig)
+            // This avoids Sanctum / personal_access_tokens entirely.
+            $expiry = time() + 300;
+            $appKey = config('app.key');
+            $sigPayload = $user->id . '|' . $expiry;
+            $sig = hash_hmac('sha256', $sigPayload, $appKey);
+            $token = base64_encode($sigPayload . '|' . $sig);
 
             // Redirect to the Next.js callback page with the token
             $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
-            $redirectUrl = $frontendUrl . '/auth/google/callback?token=' . $token;
+            $redirectUrl = $frontendUrl . '/auth/google/callback?token=' . urlencode($token);
             if ($isNew) {
                 $redirectUrl .= '&is_new=1';
             }
