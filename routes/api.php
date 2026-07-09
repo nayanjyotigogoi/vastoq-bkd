@@ -150,39 +150,38 @@ Route::prefix('auth')->group(function () {
         Route::get('google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
     });
 
-    // Exchange a short-lived HMAC-signed Google token for user data.
-    // No Bearer token / Sanctum needed — verified server-side with APP_KEY.
+    // POST /auth/google/exchange
+    // Accepts the self-contained signed token and optionally updates the role.
+    // Token format: base64(json_user_data) . "." . hmac_sha256_hex
     Route::post('google/exchange', function (\Illuminate\Http\Request $request) {
         $request->validate(['token' => 'required|string', 'role' => 'nullable|in:tenant,owner,worker']);
 
-        $raw = base64_decode(urldecode($request->token));
-        // Format: user_id|expiry|hmac_sig
-        $parts = explode('|', $raw, 3);
-        if (count($parts) !== 3) {
+        $token = $request->token;
+        $dotPos = strrpos($token, '.');
+        if ($dotPos === false) {
             return response()->json(['success' => false, 'error' => ['message' => 'Malformed token']], 400);
         }
 
-        [$userId, $expiry, $sig] = $parts;
+        $payloadB64 = substr($token, 0, $dotPos);
+        $sig        = substr($token, $dotPos + 1);
 
-        // 1. Check expiry (5-minute window)
-        if (time() > (int)$expiry) {
-            return response()->json(['success' => false, 'error' => ['message' => 'Token expired']], 401);
-        }
-
-        // 2. Verify HMAC signature
-        $appKey   = config('app.key');
-        $expected = hash_hmac('sha256', $userId . '|' . $expiry, $appKey);
+        // Verify HMAC
+        $expected = hash_hmac('sha256', $payloadB64, config('app.key'));
         if (!hash_equals($expected, $sig)) {
             return response()->json(['success' => false, 'error' => ['message' => 'Invalid token signature']], 401);
         }
 
-        // 3. Fetch user
-        $user = \App\Models\User::find((int)$userId);
+        $data = json_decode(base64_decode($payloadB64), true);
+        if (!$data || !isset($data['exp']) || time() > $data['exp']) {
+            return response()->json(['success' => false, 'error' => ['message' => 'Token expired']], 401);
+        }
+
+        $user = \App\Models\User::find($data['id']);
         if (!$user) {
             return response()->json(['success' => false, 'error' => ['message' => 'User not found']], 404);
         }
 
-        // 4. Optionally update role (for new users choosing a role)
+        // Optionally update role (new users choosing a role)
         if ($request->role) {
             $user->update(['role' => $request->role]);
             $user->refresh();

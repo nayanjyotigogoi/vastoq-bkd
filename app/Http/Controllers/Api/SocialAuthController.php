@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\WelcomeMail;
 use App\Models\User;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 
 class SocialAuthController extends Controller
@@ -74,6 +76,18 @@ class SocialAuthController extends Controller
                         ]);
                         $isNew = true;
                     }
+
+                    // Send welcome email for brand-new Google users
+                    if ($user->email) {
+                        try {
+                            Mail::to($user->email)->send(new WelcomeMail($user));
+                        } catch (\Exception $mailEx) {
+                            Log::error('Welcome email failed (Google)', [
+                                'user_id' => $user->id,
+                                'error'   => $mailEx->getMessage(),
+                            ]);
+                        }
+                    }
                 }
             }
 
@@ -83,14 +97,24 @@ class SocialAuthController extends Controller
                 return redirect($frontendUrl . '/auth/google/callback?error=blocked');
             }
 
-            // Generate a short-lived HMAC-signed token (expires in 5 min)
-            // Format: base64(user_id|expiry|hmac_sig)
-            // This avoids Sanctum / personal_access_tokens entirely.
-            $expiry = time() + 300;
-            $appKey = config('app.key');
-            $sigPayload = $user->id . '|' . $expiry;
-            $sig = hash_hmac('sha256', $sigPayload, $appKey);
-            $token = base64_encode($sigPayload . '|' . $sig);
+            // Build a self-contained signed token:
+            //   payload  = base64(json({ user data, exp: now+5min }))
+            //   token    = payload . "." . hmac_sha256(payload, APP_KEY)
+            // The frontend verifies HMAC locally — no extra round-trip needed.
+            $userData = json_encode([
+                'id'                => $user->id,
+                'name'              => $user->name,
+                'email'             => $user->email,
+                'phone'             => $user->phone,
+                'role'              => $user->role,
+                'credit_balance'    => $user->credit_balance ?? 0,
+                'is_verified'       => $user->is_verified,
+                'profile_photo_url' => $user->profile_photo_url,
+                'exp'               => time() + 300,
+            ]);
+            $payload = base64_encode($userData);
+            $sig     = hash_hmac('sha256', $payload, config('app.key'));
+            $token   = $payload . '.' . $sig;
 
             // Redirect to the Next.js callback page with the token
             $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');

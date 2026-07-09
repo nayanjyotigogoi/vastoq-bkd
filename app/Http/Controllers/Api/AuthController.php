@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\WelcomeMail;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 
 class AuthController extends Controller
 {
@@ -68,10 +70,23 @@ class AuthController extends Controller
         $user = User::create([
             'name'        => $request->name,
             'phone'       => $request->phone,
+            'email'       => $request->email ?? null,
             'password'    => Hash::make($request->password),
             'role'        => $request->role,
             'is_verified' => true,
         ]);
+
+        // Send welcome email if the user provided an email address
+        if ($user->email) {
+            try {
+                Mail::to($user->email)->send(new WelcomeMail($user));
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Welcome email failed', [
+                    'user_id' => $user->id,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+        }
 
         return response()->json([
             'success' => true,
