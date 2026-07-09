@@ -53,6 +53,7 @@ class SocialAuthController extends Controller
                     // 3. Brand-new user — create with defaults suitable for Vastoq
                     $role = session('google_register_role');
                     session()->forget('google_register_role');
+                    $isNew = true;
 
                     if ($role) {
                         $user = User::create([
@@ -74,7 +75,6 @@ class SocialAuthController extends Controller
                             'role'              => 'tenant',                 // default role
                             'is_verified'       => true,
                         ]);
-                        $isNew = true;
                     }
 
                     // Send welcome email for brand-new Google users

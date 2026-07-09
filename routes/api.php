@@ -139,6 +139,9 @@ Route::prefix('auth')->group(function () {
 
     Route::post('login',           [AuthController::class, 'login']);
     Route::post('register',        [AuthController::class, 'register']);
+    Route::post('send-email-otp',  [AuthController::class, 'sendEmailOtp']);
+    // FUTURE — MOBILE OTP: un-comment when SMS verification is ready
+    Route::post('send-phone-otp',  [AuthController::class, 'sendPhoneOtp']);
     Route::get('me',               [AuthController::class, 'me']);
     Route::post('logout',          [AuthController::class, 'logout']);
     Route::post('update-profile',  [AuthController::class, 'updateProfile']);
@@ -151,12 +154,14 @@ Route::prefix('auth')->group(function () {
     });
 
     // POST /auth/google/exchange
-    // Accepts the self-contained signed token and optionally updates the role.
+    // Accepts the self-contained signed token and optionally updates the role/phone.
     // Token format: base64(json_user_data) . "." . hmac_sha256_hex
     Route::post('google/exchange', function (\Illuminate\Http\Request $request) {
-        $request->validate(['token' => 'required|string', 'role' => 'nullable|in:tenant,owner,worker']);
-
         $token = $request->token;
+        if (!$token) {
+            return response()->json(['success' => false, 'error' => ['message' => 'Token is required.']], 400);
+        }
+
         $dotPos = strrpos($token, '.');
         if ($dotPos === false) {
             return response()->json(['success' => false, 'error' => ['message' => 'Malformed token']], 400);
@@ -181,9 +186,40 @@ Route::prefix('auth')->group(function () {
             return response()->json(['success' => false, 'error' => ['message' => 'User not found']], 404);
         }
 
-        // Optionally update role (new users choosing a role)
+        // Validate updated role and phone number
+        $role = $request->input('role', $user->role);
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'role'  => 'nullable|in:tenant,owner,worker',
+            'phone' => [
+                'nullable',
+                'digits:10',
+                'unique:users,phone,' . $user->id,
+                function ($attribute, $value, $fail) use ($role) {
+                    if (in_array($role, ['owner', 'worker']) && empty($value)) {
+                        $fail('The mobile number is required for Property Owners and Local Workers.');
+                    }
+                },
+            ],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        // Apply updates
+        $updateData = [];
         if ($request->role) {
-            $user->update(['role' => $request->role]);
+            $updateData['role'] = $request->role;
+        }
+        if ($request->has('phone')) {
+            $updateData['phone'] = $request->phone;
+        }
+
+        if (!empty($updateData)) {
+            $user->update($updateData);
             $user->refresh();
         }
 
