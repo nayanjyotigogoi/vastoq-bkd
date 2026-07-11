@@ -16,12 +16,21 @@ class SocialAuthController extends Controller
      * GET /api/auth/google
      * Redirect the browser to Google's OAuth consent screen.
      */
+    private function socialiteDriver(): \Laravel\Socialite\Contracts\Provider
+    {
+        $driver = Socialite::driver('google');
+        if (app()->environment('local')) {
+            $driver->setHttpClient(new \GuzzleHttp\Client(['verify' => false]));
+        }
+        return $driver;
+    }
+
     public function redirectToGoogle(\Illuminate\Http\Request $request)
     {
         if ($request->has('role')) {
             session(['google_register_role' => $request->role]);
         }
-        return Socialite::driver('google')->stateless()->redirect();
+        return $this->socialiteDriver()->stateless()->redirect();
     }
 
     /**
@@ -33,7 +42,7 @@ class SocialAuthController extends Controller
     public function handleGoogleCallback()
     {
         try {
-            $googleUser = Socialite::driver('google')->stateless()->user();
+            $googleUser = $this->socialiteDriver()->stateless()->user();
 
             // 1. Try to find by google_id first (fastest path for returning users)
             $user = User::where('google_id', $googleUser->id)->first();
@@ -88,7 +97,7 @@ class SocialAuthController extends Controller
 
             // Block check
             if ($user->is_blocked) {
-                $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
+                $frontendUrl = config('app.frontend_url');
                 return redirect($frontendUrl . '/login?error=blocked');
             }
 
@@ -96,7 +105,7 @@ class SocialAuthController extends Controller
             $token = $user->createToken('google_oauth')->plainTextToken;
 
             // Redirect to the Next.js callback page with the token
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
+            $frontendUrl = config('app.frontend_url');
             $redirectUrl = $frontendUrl . '/auth/google/callback?token=' . $token;
             if ($isNew) {
                 $redirectUrl .= '&is_new=1';
@@ -106,7 +115,7 @@ class SocialAuthController extends Controller
         } catch (\Exception $e) {
             Log::error('GOOGLE_AUTH: callback failed', ['error' => $e->getMessage()]);
 
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
+            $frontendUrl = config('app.frontend_url');
             return redirect($frontendUrl . '/auth/google/callback?error=auth_failed');
         }
     }

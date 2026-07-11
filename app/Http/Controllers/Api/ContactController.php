@@ -43,7 +43,7 @@ class ContactController extends Controller
 
         // Notify admin
         try {
-            Mail::to(env('ADMIN_EMAIL', 'support@tohfaah.online'))->send(
+            Mail::to(config('services.admin_email'))->send(
                 new ContactAdminMail($contact)
             );
         } catch (\Throwable $e) {

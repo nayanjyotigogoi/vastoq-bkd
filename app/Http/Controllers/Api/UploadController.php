@@ -25,8 +25,8 @@ class UploadController extends Controller
 
         foreach ($request->file('photos') as $file) {
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $path     = $file->storeAs('listings', $filename, 'public');
-            $urls[]   = Storage::disk('public')->url($path);
+            $file->storeAs('listings', $filename, 'public_web');
+            $urls[]   = 'listings/' . $filename;
         }
 
         return response()->json([
@@ -47,8 +47,8 @@ class UploadController extends Controller
 
         $file     = $request->file('photo');
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path     = $file->storeAs('profiles', $filename, 'public');
-        $url      = Storage::disk('public')->url($path);
+        $file->storeAs('profiles', $filename, 'public_web');
+        $url      = 'profiles/' . $filename;
 
         return response()->json([
             'success' => true,

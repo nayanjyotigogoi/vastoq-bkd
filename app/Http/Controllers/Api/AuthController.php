@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\EmailOtpMail;
 use App\Mail\WelcomeMail;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -56,18 +58,59 @@ class AuthController extends Controller
     }
 
     /**
+     * POST /auth/send-email-otp
+     * Generate and email a 6-digit OTP for registration verification.
+     */
+    public function sendEmailOtp(Request $request)
+    {
+        $request->validate(['email' => 'required|email|max:255']);
+
+        if (User::where('email', $request->email)->exists()) {
+            return response()->json([
+                'success' => false,
+                'error'   => ['message' => 'This email address is already registered.'],
+            ], 422);
+        }
+
+        $otp = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        Cache::put("email_otp:{$request->email}", $otp, now()->addMinutes(10));
+
+        try {
+            Mail::to($request->email)->send(new EmailOtpMail($otp));
+        } catch (\Throwable $e) {
+            Log::error('[AUTH] Email OTP send failed', ['email' => $request->email, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'error'   => ['message' => 'Failed to send verification email. Please try again.'],
+            ], 500);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Verification code sent to your email.']);
+    }
+
+    /**
      * POST /auth/register
      * Create a new account with name, phone, password, and role.
      */
     public function register(Request $request)
     {
         $request->validate([
-            'name'     => 'required|string|max:255',
-            'phone'    => 'required|digits:10|unique:users,phone',
-            'password' => 'required|string|min:6',
-            'role'     => 'required|in:tenant,owner,worker',
-            'email'    => 'nullable|email|max:255|unique:users,email',
+            'name'      => 'required|string|max:255',
+            'phone'     => 'required|digits:10|unique:users,phone',
+            'password'  => 'required|string|min:6',
+            'role'      => 'required|in:tenant,owner,worker',
+            'email'     => 'required|email|max:255|unique:users,email',
+            'email_otp' => 'required|digits:6',
         ]);
+
+        $cachedOtp = Cache::get("email_otp:{$request->email}");
+        if (!$cachedOtp || $request->email_otp !== $cachedOtp) {
+            return response()->json([
+                'success' => false,
+                'error'   => ['message' => 'Invalid or expired verification code.'],
+            ], 422);
+        }
+        Cache::forget("email_otp:{$request->email}");
 
         $user = User::create([
             'name'        => $request->name,

@@ -1,6 +1,10 @@
 /node_modules
 /public/hot
-/public/storage
+/public/storage/**
+!/public/storage/listings
+!/public/storage/listings/.gitkeep
+!/public/storage/profiles
+!/public/storage/profiles/.gitkeep
 /storage/*.key
 /vendor
 .env
