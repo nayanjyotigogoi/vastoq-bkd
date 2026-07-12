@@ -7,7 +7,6 @@ use App\Mail\WelcomeMail;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 
 class SocialAuthController extends Controller
@@ -75,17 +74,13 @@ class SocialAuthController extends Controller
                             'role'              => 'tenant',                 // default role
                             'is_verified'       => true,
                         ]);
-                    }
+                        $isNew = true;
 
-                    // Send welcome email for brand-new Google users
-                    if ($user->email) {
+                        // Send welcome email for brand-new Google users
                         try {
                             Mail::to($user->email)->send(new WelcomeMail($user));
-                        } catch (\Exception $mailEx) {
-                            Log::error('Welcome email failed (Google)', [
-                                'user_id' => $user->id,
-                                'error'   => $mailEx->getMessage(),
-                            ]);
+                        } catch (\Throwable $e) {
+                            Log::error('[GOOGLE_AUTH] Welcome email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
                         }
                     }
                 }

@@ -3,16 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Mail\OtpMail;
 use App\Mail\WelcomeMail;
-use App\Models\Otp;
 use App\Models\User;
 use App\Services\SmsService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -213,18 +211,13 @@ class AuthController extends Controller
             'is_verified' => true,
         ]);
 
-        // Mark email OTP as used
-        $emailOtpRecord->update(['is_used' => true]);
-        // FUTURE — MOBILE OTP: $phoneOtpRecord->update(['is_used' => true]);
-
-        // Send welcome email
-        try {
-            Mail::to($user->email)->send(new WelcomeMail($user));
-        } catch (\Exception $e) {
-            Log::error('Welcome email failed', [
-                'user_id' => $user->id,
-                'error'   => $e->getMessage(),
-            ]);
+        // Send welcome email if user has an email address
+        if ($user->email) {
+            try {
+                Mail::to($user->email)->send(new WelcomeMail($user));
+            } catch (\Throwable $e) {
+                Log::error('[AUTH] Welcome email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+            }
         }
 
         return response()->json([

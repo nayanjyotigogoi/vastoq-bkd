@@ -1,43 +1,51 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Welcome to Vastoq</title>
-    <style>
-        body { margin: 0; padding: 0; background: #f4f4f7; font-family: Arial, sans-serif; }
-        .wrapper { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
-        .header { background: linear-gradient(135deg, #2563eb, #7c3aed); padding: 40px 30px; text-align: center; }
-        .header h1 { color: #ffffff; margin: 0; font-size: 28px; letter-spacing: 1px; }
-        .header p { color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 15px; }
-        .body { padding: 36px 30px; color: #374151; }
-        .body h2 { font-size: 22px; margin-top: 0; color: #111827; }
-        .body p { line-height: 1.7; color: #6b7280; }
-        .btn { display: inline-block; margin-top: 20px; padding: 14px 32px; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: bold; }
-        .footer { background: #f9fafb; padding: 20px 30px; text-align: center; font-size: 12px; color: #9ca3af; border-top: 1px solid #e5e7eb; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin:0; padding:0; background:#F5F0E8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .wrap { max-width:560px; margin:40px auto; background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08); }
+  .header { background:#1B2B6B; padding:32px 40px; }
+  .logo { font-size:24px; font-weight:800; color:#fff; letter-spacing:-0.5px; }
+  .logo span { color:#1D9E75; }
+  .body { padding:36px 40px; }
+  h1 { margin:0 0 16px; font-size:22px; color:#1A1814; font-weight:700; }
+  p { margin:0 0 14px; font-size:15px; color:#4A4640; line-height:1.6; }
+  .btn { display:inline-block; margin-top:8px; padding:13px 28px; background:#1B2B6B; color:#fff; text-decoration:none; border-radius:8px; font-size:14px; font-weight:600; }
+  .footer { padding:20px 40px; border-top:1px solid #F0EBE3; }
+  .footer p { margin:0; font-size:12px; color:#8A8480; }
+</style>
 </head>
 <body>
-    <div class="wrapper">
-        <div class="header">
-            <h1>Vastoq</h1>
-            <p>Your trusted rental & worker platform</p>
-        </div>
-        <div class="body">
-            <h2>Welcome, {{ $user->name }}! 🎉</h2>
-            <p>We are thrilled to have you on board. Your account has been successfully created on Vastoq — the platform that connects tenants, property owners, and workers seamlessly.</p>
-            <p>Here is what you can do right now:</p>
-            <ul>
-                <li>Browse available listings in your area</li>
-                <li>Post your own property or service</li>
-                <li>Connect with trusted workers for home services</li>
-            </ul>
-            <a href="{{ env('FRONTEND_URL', 'http://localhost:3000') }}/dashboard" class="btn">Go to Dashboard</a>
-        </div>
-        <div class="footer">
-            &copy; {{ date('Y') }} Vastoq. All rights reserved.<br/>
-            If you did not create this account, please ignore this email.
-        </div>
-    </div>
+<div class="wrap">
+  <div class="header">
+    <div class="logo">Vastoq<span>.</span></div>
+  </div>
+  <div class="body">
+    <h1>Welcome, {{ $user->name }}! 🎉</h1>
+    <p>Your Vastoq account has been created successfully. You're now part of Assam's trusted rental and services platform.</p>
+    <p>Here's what you can do:</p>
+    <p>
+      @if($user->role === 'owner')
+      ✅ List your property and reach thousands of tenants<br>
+      ✅ Boost your listing to get to the top<br>
+      ✅ Manage enquiries from your dashboard
+      @elseif($user->role === 'worker')
+      ✅ Set up your worker profile<br>
+      ✅ Get discovered by people looking for your skills<br>
+      ✅ Build your reputation with verified reviews
+      @else
+      ✅ Browse verified rentals across Assam<br>
+      ✅ Unlock owner contacts instantly<br>
+      ✅ Find trusted local workers
+      @endif
+    </p>
+    <a href="{{ env('FRONTEND_URL', 'https://vastoq.com') }}" class="btn">Go to Vastoq →</a>
+  </div>
+  <div class="footer">
+    <p>You're receiving this because you created an account on Vastoq. Operated by Anvaya Solution, Dhemaji, Assam.</p>
+  </div>
+</div>
 </body>
 </html>

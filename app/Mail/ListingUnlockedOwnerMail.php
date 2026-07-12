@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Models\Listing;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -9,19 +10,19 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class WelcomeMail extends Mailable
+class ListingUnlockedOwnerMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public User $user) {}
+    public function __construct(public User $owner, public Listing $listing, public User $tenant) {}
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'Welcome to Vastoq!');
+        return new Envelope(subject: 'Someone contacted you about your property — Vastoq');
     }
 
     public function content(): Content
     {
-        return new Content(view: 'emails.welcome');
+        return new Content(view: 'emails.listing-unlocked-owner');
     }
 }
