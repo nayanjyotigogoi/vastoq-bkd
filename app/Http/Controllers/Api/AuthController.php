@@ -3,15 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Mail\OtpMail;
 use App\Mail\WelcomeMail;
-use App\Models\Otp;
 use App\Models\User;
 use App\Services\SmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -154,20 +152,11 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'name'      => 'required|string|max:255',
-            'phone'     => [
-                'nullable',
-                'digits:10',
-                'unique:users,phone',
-                // Required only for owner and worker roles
-                'required_if:role,owner',
-                'required_if:role,worker',
-            ],
-            'email'     => 'required|email|max:255|unique:users,email',
-            'email_otp' => 'required|digits:6',
-            // FUTURE — MOBILE OTP: 'phone_otp' => 'required|digits:6',
-            'password'  => 'required|string|min:6',
-            'role'      => 'required|in:tenant,owner,worker',
+            'name'     => 'required|string|max:255',
+            'phone'    => 'required|digits:10|unique:users,phone',
+            'password' => 'required|string|min:6',
+            'role'     => 'required|in:tenant,owner,worker',
+            'email'    => 'nullable|email|max:255|unique:users,email',
         ]);
 
         // FUTURE — MOBILE OTP: un-comment this block to verify phone OTP
@@ -208,18 +197,13 @@ class AuthController extends Controller
             'is_verified' => true,
         ]);
 
-        // Mark email OTP as used
-        $emailOtpRecord->update(['is_used' => true]);
-        // FUTURE — MOBILE OTP: $phoneOtpRecord->update(['is_used' => true]);
-
-        // Send welcome email
-        try {
-            Mail::to($user->email)->send(new WelcomeMail($user));
-        } catch (\Exception $e) {
-            Log::error('Welcome email failed', [
-                'user_id' => $user->id,
-                'error'   => $e->getMessage(),
-            ]);
+        // Send welcome email if user has an email address
+        if ($user->email) {
+            try {
+                Mail::to($user->email)->send(new WelcomeMail($user));
+            } catch (\Throwable $e) {
+                Log::error('[AUTH] Welcome email failed', ['user_id' => $user->id, 'error' => $e->getMessage()]);
+            }
         }
 
         return response()->json([

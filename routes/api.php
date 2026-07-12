@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\CouponController;
 use App\Http\Controllers\Api\SavedListingController;
 use App\Http\Controllers\Api\SocialAuthController;
 use App\Http\Controllers\Api\UploadController;
+use App\Http\Controllers\Api\ContactController;
 /*
 |--------------------------------------------------------------------------
 | API Health Check
@@ -322,6 +323,8 @@ Route::prefix('uploads')->group(function () {
     Route::post('/listing-photos', [UploadController::class, 'listingPhotos']);
     Route::post('/profile-photo',  [UploadController::class, 'profilePhoto']);
 });
+
+Route::post('/contact', [ContactController::class, 'submit']);
 
 Route::prefix('saved-listings')->group(function () {
 
