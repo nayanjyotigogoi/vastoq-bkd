@@ -60,9 +60,10 @@ class DashboardController extends Controller
             'success' => true,
             'data' => [
                 'stats' => [
-                    'unlocks_used'   => $listingUnlocks->count() + $workerUnlocks->count(),
-                    'saved_listings' => $savedListings->count(),
-                    'unlock_credits' => $user->credit_balance ?? 0,
+                    'unlocks_used'           => $listingUnlocks->count() + $workerUnlocks->count(),
+                    'saved_listings'         => $savedListings->count(),
+                    'free_unlocks'           => $user->free_unlocks_remaining ?? 0,
+                    'vastoq_points'          => $user->vastoq_points ?? 0,
                 ],
                 'unlocks'             => $listingUnlocks,
                 'worker_unlocks'      => $formattedWorkerUnlocks,

@@ -7,6 +7,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
         // Allow tenants to register without a phone number.
         // Using raw SQL to avoid doctrine/dbal version conflicts.
         DB::statement('ALTER TABLE users MODIFY phone VARCHAR(20) NULL');
@@ -14,6 +17,9 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
         DB::statement('ALTER TABLE users MODIFY phone VARCHAR(20) NOT NULL');
     }
 };

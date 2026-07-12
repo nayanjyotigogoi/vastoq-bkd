@@ -349,4 +349,93 @@ class PaymentController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
+    public function createUnlockPackageOrder(Request $request)
+    {
+        Log::info('[UNLOCK_PACKAGE:PAYMENT] Create Order Attempt');
+        try {
+            $request->validate(['user_id' => 'required|exists:users,id']);
+            $user = User::findOrFail($request->user_id);
+
+            $api         = new Api(env('RAZORPAY_KEY_ID'), env('RAZORPAY_KEY_SECRET'));
+            $priceConfig = config('prices.premium_unlock_package');
+            $amount      = $priceConfig['amount'] * 100;
+
+            $razorpayOrder = $api->order->create([
+                'receipt'  => (string) Str::uuid(),
+                'amount'   => $amount,
+                'currency' => $priceConfig['currency'],
+                'notes'    => ['user_id' => $user->id, 'type' => 'unlock_package'],
+            ]);
+
+            Transaction::create([
+                'id'                => (string) Str::uuid(),
+                'user_id'           => $user->id,
+                'amount_cents'      => $amount,
+                'currency'          => $priceConfig['currency'],
+                'razorpay_order_id' => $razorpayOrder['id'],
+                'status'            => 'created',
+            ]);
+
+            return response()->json([
+                'success'  => true,
+                'order_id' => $razorpayOrder['id'],
+                'amount'   => $amount,
+                'currency' => 'INR',
+                'key_id'   => env('RAZORPAY_KEY_ID'),
+                'contact'  => $user->email,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[UNLOCK_PACKAGE:PAYMENT] Order Creation Failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function verifyUnlockPackagePayment(Request $request)
+    {
+        Log::info('[UNLOCK_PACKAGE:PAYMENT] Verification Attempt');
+        try {
+            $request->validate([
+                'user_id'             => 'required|exists:users,id',
+                'razorpay_payment_id' => 'required|string',
+                'razorpay_order_id'   => 'required|string',
+                'razorpay_signature'  => 'required|string',
+            ]);
+            $user = User::findOrFail($request->user_id);
+
+            $api = new Api(env('RAZORPAY_KEY_ID'), env('RAZORPAY_KEY_SECRET'));
+            $api->utility->verifyPaymentSignature([
+                'razorpay_order_id'   => $request->razorpay_order_id,
+                'razorpay_payment_id' => $request->razorpay_payment_id,
+                'razorpay_signature'  => $request->razorpay_signature,
+            ]);
+
+            $txn = Transaction::where('razorpay_order_id', $request->razorpay_order_id)->first();
+            if ($txn) {
+                $txn->update([
+                    'razorpay_payment_id' => $request->razorpay_payment_id,
+                    'razorpay_signature'  => $request->razorpay_signature,
+                    'status'              => 'paid',
+                ]);
+            }
+
+            $priceConfig = config('prices.premium_unlock_package');
+            
+            // Credit Vastoq Points
+            $pointsToCredit = $priceConfig['points'] ?? 100;
+            $user->increment('vastoq_points', $pointsToCredit);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pack purchased! ' . $pointsToCredit . ' Vastoq Points credited to your wallet.',
+                'data'    => [
+                    'vastoq_points'          => $user->fresh()->vastoq_points ?? 0,
+                    'free_unlocks_remaining' => $user->free_unlocks_remaining ?? 0,
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[UNLOCK_PACKAGE:PAYMENT] Verification Failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
 }

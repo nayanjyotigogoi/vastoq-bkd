@@ -203,12 +203,14 @@ class AuthController extends Controller
         }
 
         $user = User::create([
-            'name'        => $request->name,
-            'phone'       => $request->phone,
-            'email'       => $request->email,
-            'password'    => Hash::make($request->password),
-            'role'        => $request->role,
-            'is_verified' => true,
+            'name'                   => $request->name,
+            'phone'                  => $request->phone,
+            'email'                  => $request->email,
+            'password'               => Hash::make($request->password),
+            'role'                   => $request->role,
+            'is_verified'            => true,
+            'free_unlocks_remaining' => $request->role === 'tenant' ? 2 : 0, // Welcome gift for tenants only
+            'paid_unlocks_remaining' => 0,
         ]);
 
         // Send welcome email if user has an email address
@@ -275,11 +277,16 @@ class AuthController extends Controller
 
         $user = User::findOrFail($request->user_id);
 
-        $user->update([
+        $updateData = [
             'name'  => $request->name,
-            'email' => $request->email,
             'phone' => $request->phone,
-        ]);
+        ];
+        // Only update email if explicitly supplied — never overwrite with null
+        if ($request->filled('email')) {
+            $updateData['email'] = $request->email;
+        }
+
+        $user->update($updateData);
 
         return response()->json([
             'success' => true,
@@ -321,14 +328,16 @@ class AuthController extends Controller
     private function formatUser(User $user): array
     {
         return [
-            'id'                => $user->id,
-            'name'              => $user->name,
-            'phone'             => $user->phone,
-            'email'             => $user->email,
-            'role'              => $user->role,
-            'credit_balance'    => $user->credit_balance ?? 0,
-            'is_verified'       => $user->is_verified,
-            'profile_photo_url' => $user->profile_photo_url,
+            'id'                     => $user->id,
+            'name'                   => $user->name,
+            'phone'                  => $user->phone,
+            'email'                  => $user->email,
+            'role'                   => $user->role,
+            'credit_balance'         => $user->credit_balance ?? 0,
+            'free_unlocks_remaining' => $user->free_unlocks_remaining ?? 0,
+            'vastoq_points'          => $user->vastoq_points ?? 0,
+            'is_verified'            => $user->is_verified,
+            'profile_photo_url'      => $user->profile_photo_url,
         ];
     }
 
