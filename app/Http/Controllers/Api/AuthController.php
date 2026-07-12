@@ -9,6 +9,7 @@ use App\Models\Otp;
 use App\Models\User;
 use App\Services\SmsService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -166,7 +167,11 @@ class AuthController extends Controller
             'email'     => 'required|email|max:255|unique:users,email',
             'email_otp' => 'required|digits:6',
             // FUTURE — MOBILE OTP: 'phone_otp' => 'required|digits:6',
-            'password'  => 'required|string|min:6',
+            'password'  => [
+                'required',
+                'string',
+                Password::min(8)->letters()->numbers(),
+            ],
             'role'      => 'required|in:tenant,owner,worker',
         ]);
 
