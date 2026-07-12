@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Mail\WelcomeMail;
 use App\Models\User;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Socialite\Facades\Socialite;
@@ -53,6 +52,7 @@ class SocialAuthController extends Controller
                     // 3. Brand-new user — create with defaults suitable for Vastoq
                     $role = session('google_register_role');
                     session()->forget('google_register_role');
+                    $isNew = true;
 
                     if ($role) {
                         $user = User::create([
@@ -89,15 +89,31 @@ class SocialAuthController extends Controller
             // Block check
             if ($user->is_blocked) {
                 $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
-                return redirect($frontendUrl . '/login?error=blocked');
+                return redirect($frontendUrl . '/auth/google/callback?error=blocked');
             }
 
-            // Generate a Sanctum personal-access token
-            $token = $user->createToken('google_oauth')->plainTextToken;
+            // Build a self-contained signed token:
+            //   payload  = base64(json({ user data, exp: now+5min }))
+            //   token    = payload . "." . hmac_sha256(payload, APP_KEY)
+            // The frontend verifies HMAC locally — no extra round-trip needed.
+            $userData = json_encode([
+                'id'                => $user->id,
+                'name'              => $user->name,
+                'email'             => $user->email,
+                'phone'             => $user->phone,
+                'role'              => $user->role,
+                'credit_balance'    => $user->credit_balance ?? 0,
+                'is_verified'       => $user->is_verified,
+                'profile_photo_url' => $user->profile_photo_url,
+                'exp'               => time() + 300,
+            ]);
+            $payload = base64_encode($userData);
+            $sig     = hash_hmac('sha256', $payload, config('app.key'));
+            $token   = $payload . '.' . $sig;
 
             // Redirect to the Next.js callback page with the token
             $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
-            $redirectUrl = $frontendUrl . '/auth/google/callback?token=' . $token;
+            $redirectUrl = $frontendUrl . '/auth/google/callback?token=' . urlencode($token);
             if ($isNew) {
                 $redirectUrl .= '&is_new=1';
             }

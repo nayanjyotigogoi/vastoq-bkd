@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Mail\WelcomeMail;
 use App\Models\User;
+use App\Services\SmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -56,8 +57,97 @@ class AuthController extends Controller
     }
 
     /**
+     * POST /auth/send-phone-otp
+     * Generate a 6-digit OTP and (attempt to) send it via SMS.
+     * In development, the OTP is only logged — see App\Services\SmsService.
+     */
+    public function sendPhoneOtp(Request $request)
+    {
+        $request->validate([
+            'phone' => 'required|digits:10|unique:users,phone',
+        ]);
+
+        $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        // Invalidate any previous unused OTPs for this phone
+        Otp::where('phone', $request->phone)
+            ->whereNull('email')          // target phone-only OTPs
+            ->where('is_used', false)
+            ->update(['is_used' => true]);
+
+        Otp::create([
+            'phone'      => $request->phone,
+            'email'      => null,
+            'otp'        => $otp,
+            'expires_at' => now()->addMinutes(10),
+            'is_used'    => false,
+        ]);
+
+        $sent = SmsService::sendOtp($request->phone, $otp);
+
+        if (!$sent) {
+            return response()->json([
+                'success' => false,
+                'error'   => ['message' => 'Failed to send SMS OTP. Please try again.'],
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OTP sent to your mobile number.',
+        ]);
+    }
+
+    /**
+     * POST /auth/send-email-otp
+     * Send a 6-digit OTP to the given email for sign-up verification.
+     */
+    public function sendEmailOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|max:255|unique:users,email',
+        ]);
+
+        $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        // Invalidate any previous unused OTPs for this email
+        Otp::where('email', $request->email)
+            ->where('is_used', false)
+            ->update(['is_used' => true]);
+
+        Otp::create([
+            'phone'      => '',           // phone column is NOT NULL; keep empty for email OTPs
+            'email'      => $request->email,
+            'otp'        => $otp,
+            'expires_at' => now()->addMinutes(10),
+            'is_used'    => false,
+        ]);
+
+        try {
+            Mail::to($request->email)->send(new OtpMail($otp, $request->email));
+        } catch (\Exception $e) {
+            Log::error('OTP email failed', ['email' => $request->email, 'error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'error'   => ['message' => 'Failed to send OTP. Please try again.'],
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OTP sent to your email address.',
+        ]);
+    }
+
+    /**
      * POST /auth/register
-     * Create a new account with name, phone, password, and role.
+     * Create a new account. Requires a verified email OTP.
+     * Phone is required for owner/worker roles, optional for tenants.
+     *
+     * FUTURE — MOBILE OTP: When ready to enable SMS verification, add
+     *   'phone_otp' => 'required|digits:6'  to the validation array,
+     *   un-comment the phone OTP verification block below, and update
+     *   the frontend to send `phone_otp` alongside `email_otp`.
      */
     public function register(Request $request)
     {
@@ -68,6 +158,35 @@ class AuthController extends Controller
             'role'     => 'required|in:tenant,owner,worker',
             'email'    => 'nullable|email|max:255|unique:users,email',
         ]);
+
+        // FUTURE — MOBILE OTP: un-comment this block to verify phone OTP
+        // $phoneOtpRecord = Otp::where('phone', $request->phone)
+        //     ->whereNull('email')
+        //     ->where('otp', $request->phone_otp)
+        //     ->where('is_used', false)
+        //     ->where('expires_at', '>', now())
+        //     ->latest()->first();
+        // if (!$phoneOtpRecord) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'error'   => ['message' => 'Invalid or expired mobile OTP. Please request a new code.'],
+        //     ], 422);
+        // }
+
+        // ── Verify email OTP ──────────────────────────────────────────────
+        $emailOtpRecord = Otp::where('email', $request->email)
+            ->where('otp', $request->email_otp)
+            ->where('is_used', false)
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        if (!$emailOtpRecord) {
+            return response()->json([
+                'success' => false,
+                'error'   => ['message' => 'Invalid or expired email OTP. Please request a new code.'],
+            ], 422);
+        }
 
         $user = User::create([
             'name'        => $request->name,
