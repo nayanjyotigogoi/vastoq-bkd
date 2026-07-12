@@ -25,7 +25,25 @@ class ListingController extends Controller
             'owner:id,name,is_verified,profile_photo_url'
         ])->where('status', 'approved');
 
-        if ($request->filled('search')) {
+        if ($request->filled('latitude') && $request->filled('longitude')) {
+            $lat = (double) $request->latitude;
+            $lng = (double) $request->longitude;
+            $radius = (double) $request->get('radius', 10); // default 10 km
+
+            // Filter listings within radius using Haversine formula
+            $query->whereRaw(
+                "(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) <= ?",
+                [$lat, $lng, $lat, $radius]
+            );
+
+            // Sort by distance unless another sorting option is explicitly requested
+            if (!$request->filled('sort')) {
+                $query->orderByRaw(
+                    "(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) ASC",
+                    [$lat, $lng, $lat]
+                );
+            }
+        } elseif ($request->filled('search')) {
             $this->applySearchFilter($query, trim($request->search));
         }
 
@@ -138,27 +156,33 @@ class ListingController extends Controller
      */
     private function applySearchFilter($query, string $rawSearch): void
     {
-        $words = array_values(array_filter(explode(' ', $rawSearch)));
+        // Strip commas and clean up search string
+        $cleanSearch = str_replace(',', ' ', $rawSearch);
+        $words = array_values(array_filter(explode(' ', $cleanSearch)));
 
         while (count($words) > 0) {
             $term = implode(' ', $words);
             $like = '%' . $term . '%';
 
-            $count = (clone $query)->where(function ($q) use ($like) {
+            $count = (clone $query)->where(function ($q) use ($like, $term) {
                 $q->where('title', 'LIKE', $like)
                   ->orWhere('city', 'LIKE', $like)
                   ->orWhere('locality', 'LIKE', $like)
                   ->orWhere('address', 'LIKE', $like)
-                  ->orWhere('pincode', 'LIKE', $like);
+                  ->orWhere('pincode', 'LIKE', $like)
+                  ->orWhere('locality', 'SOUNDS LIKE', $term)
+                  ->orWhere('city', 'SOUNDS LIKE', $term);
             })->count();
 
             if ($count > 0 || count($words) === 1) {
-                $query->where(function ($q) use ($like) {
+                $query->where(function ($q) use ($like, $term) {
                     $q->where('title', 'LIKE', $like)
                       ->orWhere('city', 'LIKE', $like)
                       ->orWhere('locality', 'LIKE', $like)
                       ->orWhere('address', 'LIKE', $like)
-                      ->orWhere('pincode', 'LIKE', $like);
+                      ->orWhere('pincode', 'LIKE', $like)
+                      ->orWhere('locality', 'SOUNDS LIKE', $term)
+                      ->orWhere('city', 'SOUNDS LIKE', $term);
                 });
                 return;
             }
