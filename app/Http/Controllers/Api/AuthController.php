@@ -242,6 +242,7 @@ class AuthController extends Controller
         ];
     }
 
+    //latest update
     private function getRedirectPath(?string $role): string
     {
         return match ($role) {
