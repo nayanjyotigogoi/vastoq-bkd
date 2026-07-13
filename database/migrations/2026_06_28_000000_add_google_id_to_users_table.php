@@ -9,8 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Make phone nullable using raw SQL (avoids doctrine/dbal version conflicts with Laravel 9)
-        DB::statement('ALTER TABLE users MODIFY phone VARCHAR(20) NULL');
+        if (DB::getDriverName() !== 'sqlite') {
+            // Make phone nullable using raw SQL (avoids doctrine/dbal version conflicts with Laravel 9)
+            DB::statement('ALTER TABLE users MODIFY phone VARCHAR(20) NULL');
+        }
 
         // Drop the unique index on phone so NULL values don't conflict
         // (MySQL treats multiple NULLs as distinct in unique indexes, so this is fine to leave,
@@ -28,6 +30,8 @@ return new class extends Migration
             $table->dropColumn('google_id');
         });
 
-        DB::statement('ALTER TABLE users MODIFY phone VARCHAR(20) NOT NULL');
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE users MODIFY phone VARCHAR(20) NOT NULL');
+        }
     }
 };

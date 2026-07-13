@@ -43,8 +43,15 @@ Route::get('/prices', function () {
             'worker_unlock'  => config('prices.worker_unlock.amount'),
             'listing_boost'  => config('prices.listing_boost.amount'),
             'listing_boost_duration_days' => config('prices.listing_boost.duration_days'),
+            'premium_unlock_package' => config('prices.premium_unlock_package.amount'),
+            'premium_unlock_package_count' => config('prices.premium_unlock_package.unlocks'),
         ],
     ]);
+});
+
+Route::prefix('payments')->group(function () {
+    Route::post('/unlock-package/create-order', [PaymentController::class, 'createUnlockPackageOrder']);
+    Route::post('/unlock-package/verify', [PaymentController::class, 'verifyUnlockPackagePayment']);
 });
 
 /*
@@ -148,6 +155,20 @@ Route::prefix('auth')->group(function () {
     Route::post('update-profile',  [AuthController::class, 'updateProfile']);
     Route::post('change-password', [AuthController::class, 'changePassword']);
 
+    // Update a user's role (used by Google OAuth callback to persist the chosen role)
+    Route::post('update-role', function (\Illuminate\Http\Request $request) {
+        $user = \App\Models\User::find($request->input('user_id'));
+        if (!$user) {
+            return response()->json(['success' => false, 'error' => ['message' => 'User not found']], 404);
+        }
+        $role = $request->input('role');
+        if (!in_array($role, ['tenant', 'owner', 'worker'])) {
+            return response()->json(['success' => false, 'error' => ['message' => 'Invalid role']], 422);
+        }
+        $user->update(['role' => $role]);
+        return response()->json(['success' => true]);
+    });
+
     // Google OAuth (wrapped with session middleware to support role state)
     Route::middleware([\Illuminate\Session\Middleware\StartSession::class])->group(function () {
         Route::get('google',          [SocialAuthController::class, 'redirectToGoogle']);
@@ -228,14 +249,16 @@ Route::prefix('auth')->group(function () {
             'success' => true,
             'data' => [
                 'user' => [
-                    'id'                => $user->id,
-                    'name'              => $user->name,
-                    'phone'             => $user->phone,
-                    'email'             => $user->email,
-                    'role'              => $user->role,
-                    'credit_balance'    => $user->credit_balance ?? 0,
-                    'is_verified'       => $user->is_verified,
-                    'profile_photo_url' => $user->profile_photo_url,
+                    'id'                     => $user->id,
+                    'name'                   => $user->name,
+                    'phone'                  => $user->phone,
+                    'email'                  => $user->email,
+                    'role'                   => $user->role,
+                    'credit_balance'         => $user->credit_balance ?? 0,
+                    'free_unlocks_remaining' => $user->free_unlocks_remaining ?? 0,
+                    'paid_unlocks_remaining' => $user->paid_unlocks_remaining ?? 0,
+                    'is_verified'            => $user->is_verified,
+                    'profile_photo_url'      => $user->profile_photo_url,
                 ]
             ]
         ]);
