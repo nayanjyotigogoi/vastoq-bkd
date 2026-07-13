@@ -14,6 +14,10 @@ return new class extends Migration
      */
     public function up()
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("
         ALTER TABLE listings
         MODIFY property_type ENUM(

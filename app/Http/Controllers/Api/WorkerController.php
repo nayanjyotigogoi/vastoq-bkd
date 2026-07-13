@@ -20,12 +20,16 @@ class WorkerController extends Controller
         if ($request->filled('search')) {
             // `bio` intentionally excluded — a large text field that's costly
             // to scan and rarely contains useful unique search terms.
-            $s = '%' . $request->search . '%';
-            $query->where(function ($q) use ($s) {
+            $cleanSearch = str_replace(',', ' ', $request->search);
+            $s = '%' . $cleanSearch . '%';
+            $term = $request->search;
+            $query->where(function ($q) use ($s, $term) {
                 $q->where('category', 'like', $s)
                   ->orWhere('city', 'like', $s)
                   ->orWhere('locality', 'like', $s)
-                  ->orWhereHas('user', fn ($u) => $u->where('name', 'like', $s));
+                  ->orWhereHas('user', fn ($u) => $u->where('name', 'like', $s))
+                  ->orWhere('city', 'SOUNDS LIKE', $term)
+                  ->orWhere('locality', 'SOUNDS LIKE', $term);
             });
         }
 
@@ -287,23 +291,28 @@ class WorkerController extends Controller
      */
     private function applyCityFilter($query, string $rawCity): void
     {
-        $words = array_values(array_filter(explode(' ', trim($rawCity))));
+        $cleanCity = str_replace(',', ' ', $rawCity);
+        $words = array_values(array_filter(explode(' ', trim($cleanCity))));
 
         while (count($words) > 0) {
             $term  = implode(' ', $words);
             $like  = '%' . $term . '%';
 
-            $count = (clone $query)->where(function ($q) use ($like) {
+            $count = (clone $query)->where(function ($q) use ($like, $term) {
                 $q->where('city', 'like', $like)
                   ->orWhere('locality', 'like', $like)
-                  ->orWhereRaw("JSON_SEARCH(service_areas, 'one', ?) IS NOT NULL", [$like]);
+                  ->orWhereRaw("JSON_SEARCH(service_areas, 'one', ?) IS NOT NULL", [$like])
+                  ->orWhere('city', 'SOUNDS LIKE', $term)
+                  ->orWhere('locality', 'SOUNDS LIKE', $term);
             })->count();
 
             if ($count > 0 || count($words) === 1) {
-                $query->where(function ($q) use ($like) {
+                $query->where(function ($q) use ($like, $term) {
                     $q->where('city', 'like', $like)
                       ->orWhere('locality', 'like', $like)
-                      ->orWhereRaw("JSON_SEARCH(service_areas, 'one', ?) IS NOT NULL", [$like]);
+                      ->orWhereRaw("JSON_SEARCH(service_areas, 'one', ?) IS NOT NULL", [$like])
+                      ->orWhere('city', 'SOUNDS LIKE', $term)
+                      ->orWhere('locality', 'SOUNDS LIKE', $term);
                 });
                 return;
             }

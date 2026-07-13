@@ -58,48 +58,10 @@ class RouteServiceProvider extends ServiceProvider
     {
         // General API — 120 requests per minute per user/IP
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
-        });
-
-        // Login — 10 attempts per 5 minutes per IP
-        RateLimiter::for('login', function (Request $request) {
-            return Limit::perMinutes(5, 10)
-                ->by($request->ip())
-                ->response(function () {
-                    return response()->json([
-                        'success' => false,
-                        'error'   => ['message' => 'Too many login attempts. Please wait 5 minutes and try again.'],
-                    ], 429);
-                });
-        });
-
-        // Register — 5 accounts per hour per IP
-        RateLimiter::for('register', function (Request $request) {
-            return Limit::perHour(5)
-                ->by($request->ip())
-                ->response(function () {
-                    return response()->json([
-                        'success' => false,
-                        'error'   => ['message' => 'Too many registration attempts. Please try again in an hour.'],
-                    ], 429);
-                });
-        });
-
-        // Contact form — 3 submissions per hour per IP
-        RateLimiter::for('contact', function (Request $request) {
-            return Limit::perHour(3)
-                ->by($request->ip())
-                ->response(function () {
-                    return response()->json([
-                        'success' => false,
-                        'error'   => ['message' => 'You have sent too many messages. Please wait an hour before trying again.'],
-                    ], 429);
-                });
-        });
-
-        // Google OAuth — 15 attempts per minute per IP (prevents redirect loop abuse)
-        RateLimiter::for('google_auth', function (Request $request) {
-            return Limit::perMinute(15)->by($request->ip());
+            if (app()->environment('local')) {
+                return Limit::none();
+            }
+            return Limit::perMinute(180)->by($request->user()?->id ?: $request->ip());
         });
     }
 }
