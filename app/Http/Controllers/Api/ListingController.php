@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreListingRequest;
 use App\Http\Requests\UpdateListingRequest;
 use App\Models\Listing;
+use App\Models\ListingEnquiry;
+use App\Notifications\ListingEnquiryNotification;
 use Illuminate\Http\Request;
 
 class ListingController extends Controller
@@ -87,6 +89,10 @@ class ListingController extends Controller
             $query->whereHas('owner', function ($q) {
                 $q->where('is_verified', true);
             });
+        }
+
+        if ($request->filled('listing_class')) {
+            $query->where('listing_class', $request->listing_class);
         }
 
         if ($request->has('is_featured')) {
@@ -297,6 +303,50 @@ class ListingController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Listing deleted successfully.'
+        ]);
+    }
+
+    /**
+     * POST /listings/{id}/enquire
+     * Tenant submits contact to get owner details. Free — no payment required.
+     */
+    public function enquire(Request $request, $id)
+    {
+        $request->validate([
+            'tenant_name'  => 'required|string|max:100',
+            'tenant_phone' => 'required|string|max:20',
+            'consent'      => 'boolean',
+        ]);
+
+        $listing = Listing::with('owner:id,name,phone,email,is_verified,profile_photo_url')
+            ->where('status', 'approved')
+            ->findOrFail($id);
+
+        ListingEnquiry::create([
+            'listing_id'   => $listing->id,
+            'tenant_name'  => $request->tenant_name,
+            'tenant_phone' => $request->tenant_phone,
+            'consent'      => $request->boolean('consent', true),
+            'ip_address'   => $request->ip(),
+        ]);
+
+        // Notify owner
+        try {
+            $listing->owner?->notify(new ListingEnquiryNotification(
+                $listing,
+                $request->tenant_name,
+                $request->tenant_phone,
+            ));
+        } catch (\Throwable) {}
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'phone'    => $listing->owner_phone ?? $listing->owner?->phone,
+                'email'    => $listing->owner_email ?? $listing->owner?->email,
+                'name'     => $listing->owner?->name,
+                'verified' => (bool) $listing->owner?->is_verified,
+            ],
         ]);
     }
 

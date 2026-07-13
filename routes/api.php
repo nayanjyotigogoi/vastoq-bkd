@@ -16,6 +16,9 @@ use App\Http\Controllers\Api\SavedListingController;
 use App\Http\Controllers\Api\SocialAuthController;
 use App\Http\Controllers\Api\UploadController;
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\SavedSearchController;
+use App\Http\Controllers\Api\RentalAgreementController;
+use App\Http\Controllers\Api\NotificationController;
 /*
 |--------------------------------------------------------------------------
 | API Health Check
@@ -77,6 +80,8 @@ Route::prefix('listings')->group(function () {
     Route::get('/{id}/unlock-status', [ListingUnlockController::class, 'status']);
 
     Route::post('/{id}/unlock',       [ListingUnlockController::class, 'unlock']);
+
+    Route::post('/{id}/enquire',      [ListingController::class, 'enquire']);
 
     Route::get('/{id}', [ListingController::class, 'show']);
 
@@ -153,7 +158,7 @@ Route::prefix('auth')->group(function () {
     Route::get('me',               [AuthController::class, 'me']);
     Route::post('logout',          [AuthController::class, 'logout']);
     Route::post('update-profile',  [AuthController::class, 'updateProfile']);
-    Route::post('change-password', [AuthController::class, 'changePassword']);
+    Route::post('change-password', [AuthController::class, 'changePassword'])->middleware('throttle:login');
 
     // Update a user's role (used by Google OAuth callback to persist the chosen role)
     Route::post('update-role', function (\Illuminate\Http\Request $request) {
@@ -170,7 +175,7 @@ Route::prefix('auth')->group(function () {
     });
 
     // Google OAuth (wrapped with session middleware to support role state)
-    Route::middleware([\Illuminate\Session\Middleware\StartSession::class])->group(function () {
+    Route::middleware([\Illuminate\Session\Middleware\StartSession::class, 'throttle:google_auth'])->group(function () {
         Route::get('google',          [SocialAuthController::class, 'redirectToGoogle']);
         Route::get('google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
     });
@@ -347,7 +352,7 @@ Route::prefix('uploads')->group(function () {
     Route::post('/profile-photo',  [UploadController::class, 'profilePhoto']);
 });
 
-Route::post('/contact', [ContactController::class, 'submit']);
+Route::post('/contact', [ContactController::class, 'submit'])->middleware('throttle:contact');
 
 Route::prefix('saved-listings')->group(function () {
 
@@ -360,4 +365,36 @@ Route::prefix('saved-listings')->group(function () {
         '/toggle',
         [SavedListingController::class, 'toggle']
     );
+});
+
+/*
+|--------------------------------------------------------------------------
+| Saved Searches (alert system)
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('saved-searches')->group(function () {
+    Route::get('/',        [SavedSearchController::class, 'index']);
+    Route::post('/',       [SavedSearchController::class, 'store']);
+    Route::delete('/{id}', [SavedSearchController::class, 'destroy']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Rental Agreement PDF
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/rental-agreement/{listingId}', [RentalAgreementController::class, 'generate']);
+
+/*
+|--------------------------------------------------------------------------
+| Notifications
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('notifications')->group(function () {
+    Route::get('/',              [NotificationController::class, 'index']);
+    Route::post('/read-all',     [NotificationController::class, 'markAllRead']);
+    Route::post('/{id}/read',    [NotificationController::class, 'markRead']);
 });

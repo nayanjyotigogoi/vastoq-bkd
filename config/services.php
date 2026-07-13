@@ -35,9 +35,13 @@ return [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect'      => env('GOOGLE_REDIRECT_URL'),
-        'guzzle'        => [
-            'verify' => false, // Disable SSL verification for local development
-        ],
     ],
+
+    'razorpay' => [
+        'key_id'     => env('RAZORPAY_KEY_ID'),
+        'key_secret' => env('RAZORPAY_KEY_SECRET'),
+    ],
+
+    'admin_email' => env('ADMIN_EMAIL', 'support@tohfaah.online'),
 
 ];

@@ -56,6 +56,7 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting()
     {
+        // General API — 120 requests per minute per user/IP
         RateLimiter::for('api', function (Request $request) {
             if (app()->environment('local')) {
                 return Limit::none();

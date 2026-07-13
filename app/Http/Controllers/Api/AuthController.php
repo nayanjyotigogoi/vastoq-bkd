@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\EmailOtpMail;
 use App\Mail\WelcomeMail;
 use App\Models\User;
 use App\Services\SmsService;
@@ -341,6 +342,7 @@ class AuthController extends Controller
         ];
     }
 
+    //latest update
     private function getRedirectPath(?string $role): string
     {
         return match ($role) {

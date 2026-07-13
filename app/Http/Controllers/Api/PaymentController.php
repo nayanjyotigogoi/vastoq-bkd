@@ -7,6 +7,8 @@ use App\Mail\ListingBoostedMail;
 use App\Mail\ListingUnlockedOwnerMail;
 use App\Mail\ListingUnlockedUserMail;
 use App\Mail\WorkerUnlockedMail;
+use App\Notifications\ListingUnlockedOwnerNotification;
+use App\Notifications\PaymentSuccessNotification;
 use App\Models\Listing;
 use App\Models\ListingUnlock;
 use App\Models\Worker;
@@ -32,7 +34,7 @@ class PaymentController extends Controller
             $existing = ListingUnlock::where('listing_id', $listing->id)->where('user_id', $user->id)->first();
             if ($existing) return response()->json(['success' => false, 'message' => 'Already unlocked'], 400);
 
-            $api         = new Api(env('RAZORPAY_KEY_ID'), env('RAZORPAY_KEY_SECRET'));
+            $api         = new Api(config('services.razorpay.key_id'), config('services.razorpay.key_secret'));
             $priceConfig = config('prices.listing_unlock');
             $amount      = $priceConfig['amount'] * 100;
 
@@ -58,7 +60,7 @@ class PaymentController extends Controller
                 'order_id' => $razorpayOrder['id'],
                 'amount'   => $amount,
                 'currency' => 'INR',
-                'key_id'   => env('RAZORPAY_KEY_ID'),
+                'key_id'   => config('services.razorpay.key_id'),
                 'contact'  => $user->email,
             ]);
         } catch (\Throwable $e) {
@@ -88,7 +90,7 @@ class PaymentController extends Controller
                 ]]);
             }
 
-            $api = new Api(env('RAZORPAY_KEY_ID'), env('RAZORPAY_KEY_SECRET'));
+            $api = new Api(config('services.razorpay.key_id'), config('services.razorpay.key_secret'));
             $api->utility->verifyPaymentSignature([
                 'razorpay_order_id'   => $request->razorpay_order_id,
                 'razorpay_payment_id' => $request->razorpay_payment_id,
@@ -114,16 +116,36 @@ class PaymentController extends Controller
 
             $listing->increment('unlock_count');
 
-            // Email: notify tenant with owner details
+            // Email + notification: tenant
             if ($user->email) {
                 try { Mail::to($user->email)->send(new ListingUnlockedUserMail($user, $listing->load('owner'))); }
                 catch (\Throwable $e) { Log::error('[LISTING:UNLOCK] User email failed', ['error' => $e->getMessage()]); }
             }
-            // Email: notify owner that someone contacted them
+            try { $user->notify(new PaymentSuccessNotification("You unlocked contact details for \"{$listing->title}\".", "/rentals/{$listing->id}")); }
+            catch (\Throwable $e) { Log::error('[LISTING:UNLOCK] User notification failed', ['error' => $e->getMessage()]); }
+
+            // Email + notification: owner
             $owner = $listing->owner;
             if ($owner && $owner->email) {
                 try { Mail::to($owner->email)->send(new ListingUnlockedOwnerMail($owner, $listing, $user)); }
                 catch (\Throwable $e) { Log::error('[LISTING:UNLOCK] Owner email failed', ['error' => $e->getMessage()]); }
+            }
+            if ($owner) {
+                try { $owner->notify(new ListingUnlockedOwnerNotification($listing)); }
+                catch (\Throwable $e) { Log::error('[LISTING:UNLOCK] Owner notification failed', ['error' => $e->getMessage()]); }
+            }
+
+            // Notification: admin(s)
+            $admins = User::where('role', 'admin')->get();
+            foreach ($admins as $admin) {
+                try {
+                    $admin->notify(new PaymentSuccessNotification(
+                        "{$user->name} unlocked \"{$listing->title}\" · ₹{$priceConfig['amount']}",
+                        "/admin"
+                    ));
+                } catch (\Throwable $e) {
+                    Log::error('[LISTING:UNLOCK] Admin notification failed', ['error' => $e->getMessage()]);
+                }
             }
 
             return response()->json(['success' => true, 'message' => 'Payment successful! Details unlocked.', 'data' => [
@@ -154,7 +176,7 @@ class PaymentController extends Controller
                 return response()->json(['success' => false, 'message' => 'This listing is already boosted.'], 400);
             }
 
-            $api         = new Api(env('RAZORPAY_KEY_ID'), env('RAZORPAY_KEY_SECRET'));
+            $api         = new Api(config('services.razorpay.key_id'), config('services.razorpay.key_secret'));
             $priceConfig = config('prices.listing_boost');
             $amount      = $priceConfig['amount'] * 100;
 
@@ -180,7 +202,7 @@ class PaymentController extends Controller
                 'order_id' => $razorpayOrder['id'],
                 'amount'   => $amount,
                 'currency' => 'INR',
-                'key_id'   => env('RAZORPAY_KEY_ID'),
+                'key_id'   => config('services.razorpay.key_id'),
                 'contact'  => $user->email,
             ]);
         } catch (\Throwable $e) {
@@ -206,7 +228,7 @@ class PaymentController extends Controller
                 return response()->json(['success' => false, 'message' => 'Only the listing owner can boost this listing.'], 403);
             }
 
-            $api = new Api(env('RAZORPAY_KEY_ID'), env('RAZORPAY_KEY_SECRET'));
+            $api = new Api(config('services.razorpay.key_id'), config('services.razorpay.key_secret'));
             $api->utility->verifyPaymentSignature([
                 'razorpay_order_id'   => $request->razorpay_order_id,
                 'razorpay_payment_id' => $request->razorpay_payment_id,
@@ -228,11 +250,13 @@ class PaymentController extends Controller
                 'featured_until' => now()->addDays($priceConfig['duration_days']),
             ]);
 
-            // Email: confirm boost to owner
+            // Email + notification: confirm boost to owner
             if ($user->email) {
                 try { Mail::to($user->email)->send(new ListingBoostedMail($user, $listing->fresh(), $priceConfig['duration_days'])); }
                 catch (\Throwable $e) { Log::error('[LISTING:BOOST] Email failed', ['error' => $e->getMessage()]); }
             }
+            try { $user->notify(new PaymentSuccessNotification("Your listing \"{$listing->title}\" is now featured for {$priceConfig['duration_days']} days.", "/owner/dashboard")); }
+            catch (\Throwable $e) { Log::error('[LISTING:BOOST] Notification failed', ['error' => $e->getMessage()]); }
 
             return response()->json(['success' => true, 'message' => 'Listing boosted! It will be featured for ' . $priceConfig['duration_days'] . ' days.', 'data' => [
                 'is_featured'    => true,
@@ -255,7 +279,7 @@ class PaymentController extends Controller
             $existing = WorkerUnlock::where('worker_id', $worker->id)->where('user_id', $user->id)->first();
             if ($existing) return response()->json(['success' => false, 'message' => 'Already unlocked'], 400);
 
-            $api         = new Api(env('RAZORPAY_KEY_ID'), env('RAZORPAY_KEY_SECRET'));
+            $api         = new Api(config('services.razorpay.key_id'), config('services.razorpay.key_secret'));
             $priceConfig = config('prices.worker_unlock');
             $amount      = $priceConfig['amount'] * 100;
 
@@ -281,7 +305,7 @@ class PaymentController extends Controller
                 'order_id' => $razorpayOrder['id'],
                 'amount'   => $amount,
                 'currency' => 'INR',
-                'key_id'   => env('RAZORPAY_KEY_ID'),
+                'key_id'   => config('services.razorpay.key_id'),
                 'contact'  => $user->email,
             ]);
         } catch (\Throwable $e) {
@@ -309,7 +333,7 @@ class PaymentController extends Controller
                     'data' => ['phone' => $worker->user?->phone, 'service_area' => $worker->locality]]);
             }
 
-            $api = new Api(env('RAZORPAY_KEY_ID'), env('RAZORPAY_KEY_SECRET'));
+            $api = new Api(config('services.razorpay.key_id'), config('services.razorpay.key_secret'));
             $api->utility->verifyPaymentSignature([
                 'razorpay_order_id'   => $request->razorpay_order_id,
                 'razorpay_payment_id' => $request->razorpay_payment_id,
