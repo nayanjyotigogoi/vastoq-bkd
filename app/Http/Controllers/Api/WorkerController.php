@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Worker;
+use App\Models\WorkerUnlock;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -52,10 +53,24 @@ class WorkerController extends Controller
         $perPage = min((int) $request->get('per_page', 20), 500);
         $workers = $query->orderByDesc('rating')->paginate($perPage);
 
+        $userId = $request->get('user_id');
+        $unlockedWorkerIds = $userId
+            ? WorkerUnlock::where('user_id', $userId)->pluck('worker_id')->toArray()
+            : [];
+
+        $formatted = array_map(function ($worker) use ($unlockedWorkerIds) {
+            $data = $this->format($worker);
+            $data['is_unlocked'] = in_array($worker->id, $unlockedWorkerIds);
+            if ($data['is_unlocked']) {
+                $data['phone'] = $worker->user?->phone;
+            }
+            return $data;
+        }, $workers->items());
+
         return response()->json([
             'success' => true,
             'data'    => [
-                'data'         => array_map([$this, 'format'], $workers->items()),
+                'data'         => $formatted,
                 'total'        => $workers->total(),
                 'current_page' => $workers->currentPage(),
                 'per_page'     => $workers->perPage(),
@@ -205,8 +220,11 @@ class WorkerController extends Controller
             'rate_per_day' => 'nullable|integer|min:0',
             'skills'       => 'nullable|array',
             'skills.*'     => 'string|max:100',
-            'service_areas' => 'nullable|array',
+            'service_areas'   => 'nullable|array',
             'available_today' => 'nullable|boolean',
+            'photo_url'    => 'nullable|url',
+            'work_photos'  => 'nullable|array|max:6',
+            'work_photos.*' => 'url',
         ]);
 
         $worker = Worker::where('user_id', $request->user_id)->first();
@@ -221,6 +239,7 @@ class WorkerController extends Controller
         $worker->update($request->only([
             'category', 'bio', 'city', 'locality',
             'rate_per_day', 'skills', 'service_areas', 'available_today',
+            'photo_url', 'work_photos',
         ]));
 
         $worker->load('user');
@@ -335,6 +354,7 @@ class WorkerController extends Controller
             'locality'        => $worker->locality,
             'rate_per_day'    => $worker->rate_per_day,
             'photo_url'       => $worker->photo_url ?? $worker->user->profile_photo_url ?? null,
+            'work_photos'     => $worker->work_photos ?? [],
             'rating'          => $worker->rating,
             'review_count'    => $worker->review_count,
             'view_count'      => $worker->view_count,
