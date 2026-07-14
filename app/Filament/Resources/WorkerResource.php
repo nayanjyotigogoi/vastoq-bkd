@@ -3,6 +3,8 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\WorkerResource\Pages;
+use App\Mail\AadhaarVerifiedMail;
+use App\Mail\AadhaarRejectedMail;
 use App\Models\Worker;
 use Filament\Forms;
 use Filament\Forms\Components\Grid;
@@ -16,6 +18,8 @@ use Filament\Resources\Resource;
 use Filament\Resources\Table;
 use Filament\Tables;
 use Filament\Tables\Filters\SelectFilter;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\HtmlString;
 
 class WorkerResource extends Resource
@@ -188,11 +192,14 @@ class WorkerResource extends Resource
                     ->icon('heroicon-o-badge-check')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->action(fn (Worker $record) => $record->update([
-                        'is_verified'              => true,
-                        'aadhaar_status'           => 'verified',
-                        'aadhaar_rejection_reason' => null,
-                    ]))
+                    ->action(function (Worker $record) {
+                        $record->update(['is_verified' => true, 'aadhaar_status' => 'verified', 'aadhaar_rejection_reason' => null]);
+                        $user = $record->user;
+                        if ($user && $user->email) {
+                            try { Mail::to($user->email)->send(new AadhaarVerifiedMail($user)); }
+                            catch (\Throwable $e) { Log::error('[AADHAAR:VERIFY] Email failed', ['error' => $e->getMessage()]); }
+                        }
+                    })
                     ->visible(fn (Worker $record) => $record->aadhaar_status !== 'verified'),
 
                 Tables\Actions\Action::make('reject')
@@ -204,11 +211,14 @@ class WorkerResource extends Resource
                             ->required()
                             ->rows(2),
                     ])
-                    ->action(fn (Worker $record, array $data) => $record->update([
-                        'is_verified'              => false,
-                        'aadhaar_status'           => 'rejected',
-                        'aadhaar_rejection_reason' => $data['reason'],
-                    ]))
+                    ->action(function (Worker $record, array $data) {
+                        $record->update(['is_verified' => false, 'aadhaar_status' => 'rejected', 'aadhaar_rejection_reason' => $data['reason']]);
+                        $user = $record->user;
+                        if ($user && $user->email) {
+                            try { Mail::to($user->email)->send(new AadhaarRejectedMail($user, $data['reason'])); }
+                            catch (\Throwable $e) { Log::error('[AADHAAR:REJECT] Email failed', ['error' => $e->getMessage()]); }
+                        }
+                    })
                     ->visible(fn (Worker $record) => $record->aadhaar_status !== 'rejected'),
 
                 Tables\Actions\Action::make('toggle_active')

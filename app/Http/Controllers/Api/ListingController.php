@@ -7,8 +7,14 @@ use App\Http\Requests\StoreListingRequest;
 use App\Http\Requests\UpdateListingRequest;
 use App\Models\Listing;
 use App\Models\ListingEnquiry;
+use App\Models\User;
+use App\Mail\ListingApprovedMail;
+use App\Mail\ListingEnquiryMail;
 use App\Notifications\ListingEnquiryNotification;
+use App\Notifications\PaymentSuccessNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class ListingController extends Controller
 {
@@ -239,13 +245,33 @@ class ListingController extends Controller
 
             'is_broker' => $request->is_broker ?? false,
 
-            'status' => 'pending',
+            'status' => 'approved',
 
             'view_count' => 0,
             'unlock_count' => 0,
 
             'is_featured' => false,
         ]);
+
+        // Email owner — confirm their listing is live
+        $owner = User::find($listing->owner_id);
+        if ($owner && $owner->email) {
+            try { Mail::to($owner->email)->send(new ListingApprovedMail($owner, $listing)); }
+            catch (\Throwable $e) { Log::error('[LISTING:CREATE] Owner email failed', ['error' => $e->getMessage()]); }
+        }
+
+        // Notify all admins about the new listing
+        $admins = User::where('role', 'admin')->get();
+        foreach ($admins as $admin) {
+            try {
+                $admin->notify(new PaymentSuccessNotification(
+                    "New listing posted: \"{$listing->title}\" in {$listing->city}",
+                    "/admin"
+                ));
+            } catch (\Throwable $e) {
+                Log::error('[LISTING:CREATE] Admin notification failed', ['error' => $e->getMessage()]);
+            }
+        }
 
         return response()->json([
             'success' => true,
@@ -330,14 +356,14 @@ class ListingController extends Controller
             'ip_address'   => $request->ip(),
         ]);
 
-        // Notify owner
-        try {
-            $listing->owner?->notify(new ListingEnquiryNotification(
-                $listing,
-                $request->tenant_name,
-                $request->tenant_phone,
-            ));
-        } catch (\Throwable) {}
+        // Notify owner — in-app + email
+        $owner = $listing->owner;
+        try { $owner?->notify(new ListingEnquiryNotification($listing, $request->tenant_name, $request->tenant_phone)); }
+        catch (\Throwable) {}
+        if ($owner && $owner->email) {
+            try { Mail::to($owner->email)->send(new ListingEnquiryMail($listing, $request->tenant_name, $request->tenant_phone)); }
+            catch (\Throwable $e) { Log::error('[ENQUIRY] Owner email failed', ['error' => $e->getMessage()]); }
+        }
 
         return response()->json([
             'success' => true,

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class UploadController extends Controller
@@ -25,7 +24,7 @@ class UploadController extends Controller
 
         foreach ($request->file('photos') as $file) {
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-            $file->storeAs('listings', $filename, 'public_web');
+            $file->move(public_path('storage/listings'), $filename);
             $urls[]   = 'listings/' . $filename;
         }
 
@@ -47,8 +46,8 @@ class UploadController extends Controller
 
         $file     = $request->file('photo');
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $file->storeAs('profiles', $filename, 'public_web');
-        $url      = 'profiles/' . $filename;
+        $file->move(public_path('storage/profiles'), $filename);
+        $url      = rtrim(env('APP_URL'), '/') . '/storage/profiles/' . $filename;
 
         return response()->json([
             'success' => true,

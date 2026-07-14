@@ -174,11 +174,19 @@ Route::prefix('auth')->group(function () {
         return response()->json(['success' => true]);
     });
 
-    // Google OAuth (wrapped with session middleware to support role state)
-    Route::middleware([\Illuminate\Session\Middleware\StartSession::class, 'throttle:google_auth'])->group(function () {
-        Route::get('google',          [SocialAuthController::class, 'redirectToGoogle']);
+    Route::middleware([
+        \Illuminate\Session\Middleware\StartSession::class,
+    ])->group(function () {
+        Route::get('google', [SocialAuthController::class, 'redirectToGoogle']);
         Route::get('google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
     });
+
+    // Google OAuth (wrapped with session middleware to support role state)
+    // Route::middleware([\Illuminate\Session\Middleware\StartSession::class, 'throttle:google_auth'])->group(function () {
+    //     Route::get('google',          [SocialAuthController::class, 'redirectToGoogle']);
+    //     Route::get('google/callback', [SocialAuthController::class, 'handleGoogleCallback']);
+    // });
+
 
     // POST /auth/google/exchange
     // Accepts the self-contained signed token and optionally updates the role/phone.
@@ -398,3 +406,12 @@ Route::prefix('notifications')->group(function () {
     Route::post('/read-all',     [NotificationController::class, 'markAllRead']);
     Route::post('/{id}/read',    [NotificationController::class, 'markRead']);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Admin — listing approval / rejection
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/admin/listings',        [\App\Http\Controllers\Api\AdminListingController::class, 'index']);
+Route::patch('/admin/listings/{id}', [\App\Http\Controllers\Api\AdminListingController::class, 'action']);
