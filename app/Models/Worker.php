@@ -18,6 +18,7 @@ class Worker extends Model
         'locality',
         'rate_per_day',
         'photo_url',
+        'work_photos',
         'rating',
         'review_count',
         'view_count',
@@ -43,6 +44,7 @@ class Worker extends Model
     protected $casts = [
         'skills'        => 'array',
         'service_areas' => 'array',
+        'work_photos'   => 'array',
         'is_verified'   => 'boolean',
         'is_active'     => 'boolean',
         'available_today' => 'boolean',

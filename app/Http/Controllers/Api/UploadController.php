@@ -25,7 +25,7 @@ class UploadController extends Controller
         foreach ($request->file('photos') as $file) {
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
             $file->move(public_path('storage/listings'), $filename);
-            $urls[]   = 'listings/' . $filename;
+            $urls[]   = rtrim(env('APP_URL'), '/') . '/storage/listings/' . $filename;
         }
 
         return response()->json([
