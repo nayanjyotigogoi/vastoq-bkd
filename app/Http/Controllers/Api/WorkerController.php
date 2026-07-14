@@ -18,18 +18,18 @@ class WorkerController extends Controller
             ->where('is_active', true);
 
         if ($request->filled('search')) {
-            // `bio` intentionally excluded — a large text field that's costly
-            // to scan and rarely contains useful unique search terms.
-            $cleanSearch = str_replace(',', ' ', $request->search);
-            $s = '%' . $cleanSearch . '%';
-            $term = $request->search;
-            $query->where(function ($q) use ($s, $term) {
-                $q->where('category', 'like', $s)
-                  ->orWhere('city', 'like', $s)
-                  ->orWhere('locality', 'like', $s)
-                  ->orWhereHas('user', fn ($u) => $u->where('name', 'like', $s))
-                  ->orWhere('city', 'SOUNDS LIKE', $term)
-                  ->orWhere('locality', 'SOUNDS LIKE', $term);
+            // Split on commas/spaces so "Dibrugarh, Assam, India" matches city "Dibrugarh"
+            $words = array_filter(array_map('trim', preg_split('/[\s,]+/', $request->search)));
+            $query->where(function ($q) use ($words) {
+                foreach ($words as $word) {
+                    $s = '%' . $word . '%';
+                    $q->orWhere('category', 'like', $s)
+                      ->orWhere('city', 'like', $s)
+                      ->orWhere('locality', 'like', $s)
+                      ->orWhereHas('user', fn ($u) => $u->where('name', 'like', $s))
+                      ->orWhere('city', 'SOUNDS LIKE', $word)
+                      ->orWhere('locality', 'SOUNDS LIKE', $word);
+                }
             });
         }
 

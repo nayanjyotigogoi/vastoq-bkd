@@ -13,7 +13,8 @@
   p { margin:0 0 14px; font-size:15px; color:#4A4640; line-height:1.6; }
   .card { background:#E1F5EE; border:1px solid #1D9E7530; border-radius:10px; padding:18px 20px; margin:20px 0; }
   .card p { margin:6px 0; font-size:14px; }
-  .label { font-weight:600; color:#1A1814; min-width:130px; display:inline-block; }
+  .label { font-weight:600; color:#1A1814; min-width:120px; display:inline-block; }
+  .listing-card { background:#F8F8F8; border:1px solid #E5E0D5; border-radius:10px; padding:18px 20px; margin:20px 0; }
   .btn { display:inline-block; margin-top:8px; padding:13px 28px; background:#1B2B6B; color:#fff; text-decoration:none; border-radius:8px; font-size:14px; font-weight:600; }
   .footer { padding:20px 40px; border-top:1px solid #F0EBE3; }
   .footer p { margin:0; font-size:12px; color:#8A8480; }
@@ -25,26 +26,23 @@
     <div class="logo">Vastoq<span>.</span></div>
   </div>
   <div class="body">
-    <h1>Someone is interested in your property!</h1>
-    <p>Hi {{ $owner->name }}, a tenant just unlocked the contact details for your listing. Please reach out to them as soon as possible.</p>
+    <h1>Someone enquired about your property!</h1>
+    <p>Hi {{ $listing->owner?->name }}, a tenant is interested in your listing. Contact them as soon as possible.</p>
 
     <div class="card">
       <p style="margin-bottom:10px;font-weight:700;color:#1A1814;">Tenant Details</p>
-      <p><span class="label">Name:</span> {{ $tenant->name }}</p>
-      <p><span class="label">Phone:</span> <strong>{{ $tenant->phone ?? '—' }}</strong></p>
-      @if($tenant->email)
-      <p><span class="label">Email:</span> <strong>{{ $tenant->email }}</strong></p>
-      @endif
+      <p><span class="label">Name:</span> {{ $tenantName }}</p>
+      <p><span class="label">Phone:</span> <strong>{{ $tenantPhone }}</strong></p>
     </div>
 
-    <div class="card" style="background:#F8F8F8; border-color:#E5E0D5;">
+    <div class="listing-card">
       <p style="margin-bottom:10px;font-weight:700;color:#1A1814;">Your Property</p>
       <p><span class="label">Listing:</span> {{ $listing->title }}</p>
       <p><span class="label">Location:</span> {{ $listing->locality }}, {{ $listing->city }}</p>
       <p><span class="label">Rent:</span> ₹{{ number_format($listing->rent_per_month) }}/month</p>
     </div>
 
-    <p>The tenant has your phone number. You can also contact them directly using the details above.</p>
+    <p>Call or WhatsApp the tenant directly. Quick responses lead to faster rentals!</p>
     <a href="{{ env('FRONTEND_URL', 'https://vastoq.com') }}/owner/dashboard" class="btn">View Dashboard →</a>
   </div>
   <div class="footer">

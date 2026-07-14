@@ -180,7 +180,7 @@ class ListingResource extends Resource
 
                 Tables\Columns\TextColumn::make('rent_per_month')
                     ->label('Rent')
-                    ->money('INR'),
+                    ->formatStateUsing(fn ($state) => '₹' . number_format((int) $state)),
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->colors([

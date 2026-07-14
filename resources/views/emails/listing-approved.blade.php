@@ -11,9 +11,10 @@
   .body { padding:36px 40px; }
   h1 { margin:0 0 16px; font-size:22px; color:#1A1814; font-weight:700; }
   p { margin:0 0 14px; font-size:15px; color:#4A4640; line-height:1.6; }
-  .card { background:#E1F5EE; border:1px solid #1D9E7530; border-radius:10px; padding:18px 20px; margin:20px 0; }
-  .card p { margin:6px 0; font-size:14px; }
-  .label { font-weight:600; color:#1A1814; min-width:130px; display:inline-block; }
+  .card { background:#E1F5EE; border-radius:10px; padding:18px 20px; margin:20px 0; }
+  .card p { margin:4px 0; font-size:14px; }
+  .label { font-weight:600; color:#1A1814; }
+  .badge { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; background:#1D9E75; color:#fff; border-radius:20px; font-size:13px; font-weight:700; margin-bottom:20px; }
   .btn { display:inline-block; margin-top:8px; padding:13px 28px; background:#1B2B6B; color:#fff; text-decoration:none; border-radius:8px; font-size:14px; font-weight:600; }
   .footer { padding:20px 40px; border-top:1px solid #F0EBE3; }
   .footer p { margin:0; font-size:12px; color:#8A8480; }
@@ -25,27 +26,16 @@
     <div class="logo">Vastoq<span>.</span></div>
   </div>
   <div class="body">
-    <h1>Someone is interested in your property!</h1>
-    <p>Hi {{ $owner->name }}, a tenant just unlocked the contact details for your listing. Please reach out to them as soon as possible.</p>
-
+    <div class="badge">✓ Listing Approved</div>
+    <h1>Your property is now live!</h1>
+    <p>Hi {{ $owner->name }}, great news — your listing has been reviewed and approved by our team.</p>
     <div class="card">
-      <p style="margin-bottom:10px;font-weight:700;color:#1A1814;">Tenant Details</p>
-      <p><span class="label">Name:</span> {{ $tenant->name }}</p>
-      <p><span class="label">Phone:</span> <strong>{{ $tenant->phone ?? '—' }}</strong></p>
-      @if($tenant->email)
-      <p><span class="label">Email:</span> <strong>{{ $tenant->email }}</strong></p>
-      @endif
-    </div>
-
-    <div class="card" style="background:#F8F8F8; border-color:#E5E0D5;">
-      <p style="margin-bottom:10px;font-weight:700;color:#1A1814;">Your Property</p>
-      <p><span class="label">Listing:</span> {{ $listing->title }}</p>
+      <p><span class="label">Property:</span> {{ $listing->title }}</p>
       <p><span class="label">Location:</span> {{ $listing->locality }}, {{ $listing->city }}</p>
       <p><span class="label">Rent:</span> ₹{{ number_format($listing->rent_per_month) }}/month</p>
     </div>
-
-    <p>The tenant has your phone number. You can also contact them directly using the details above.</p>
-    <a href="{{ env('FRONTEND_URL', 'https://vastoq.com') }}/owner/dashboard" class="btn">View Dashboard →</a>
+    <p>Tenants can now find and unlock your listing. You'll be notified whenever someone contacts you.</p>
+    <a href="{{ env('FRONTEND_URL', 'https://vastoq.com') }}/owner/dashboard" class="btn">Go to Dashboard →</a>
   </div>
   <div class="footer">
     <p>Operated by Anvaya Solution, Dhemaji, Assam. For support: support@tohfaah.online</p>
