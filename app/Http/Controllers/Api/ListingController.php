@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateListingRequest;
 use App\Models\Listing;
 use App\Models\ListingEnquiry;
 use App\Models\User;
+use App\Mail\ListingApprovedMail;
 use App\Mail\ListingEnquiryMail;
 use App\Notifications\ListingEnquiryNotification;
 use App\Notifications\PaymentSuccessNotification;
@@ -251,6 +252,13 @@ class ListingController extends Controller
 
             'is_featured' => false,
         ]);
+
+        // Email owner — confirm their listing is live
+        $owner = User::find($listing->owner_id);
+        if ($owner && $owner->email) {
+            try { Mail::to($owner->email)->send(new ListingApprovedMail($owner, $listing)); }
+            catch (\Throwable $e) { Log::error('[LISTING:CREATE] Owner email failed', ['error' => $e->getMessage()]); }
+        }
 
         // Notify all admins about the new listing
         $admins = User::where('role', 'admin')->get();
