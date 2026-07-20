@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\SavedSearchController;
 use App\Http\Controllers\Api\RentalAgreementController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PricesController;
+use App\Http\Controllers\Api\ContactReportController;
 /*
 |--------------------------------------------------------------------------
 | API Health Check
@@ -404,3 +405,14 @@ Route::prefix('notifications')->group(function () {
 
 Route::get('/admin/listings',        [\App\Http\Controllers\Api\AdminListingController::class, 'index']);
 Route::patch('/admin/listings/{id}', [\App\Http\Controllers\Api\AdminListingController::class, 'action']);
+
+/*
+|--------------------------------------------------------------------------
+| Contact Reports (Issue Reporting after unlock)
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('contact-reports')->group(function () {
+    Route::post('/',       [ContactReportController::class, 'store']);
+    Route::get('/status',  [ContactReportController::class, 'userStatus']);
+});
