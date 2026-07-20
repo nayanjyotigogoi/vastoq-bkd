@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Mail\EmailOtpMail;
+use App\Mail\OtpMail;
 use App\Mail\WelcomeMail;
+use App\Models\Otp;
 use App\Models\User;
 use App\Services\SmsService;
 use Illuminate\Http\Request;
@@ -127,7 +129,7 @@ class AuthController extends Controller
 
         try {
             Mail::to($request->email)->send(new OtpMail($otp, $request->email));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('OTP email failed', ['email' => $request->email, 'error' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
