@@ -128,7 +128,7 @@ class AuthController extends Controller
         ]);
 
         try {
-            Mail::to($request->email)->send(new OtpMail($otp, $request->email));
+            Mail::to($request->email)->send(new EmailOtpMail($otp));
         } catch (\Throwable $e) {
             Log::error('OTP email failed', ['email' => $request->email, 'error' => $e->getMessage()]);
             return response()->json([
