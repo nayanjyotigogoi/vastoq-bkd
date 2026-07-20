@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\SavedSearchController;
 use App\Http\Controllers\Api\RentalAgreementController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PricesController;
 /*
 |--------------------------------------------------------------------------
 | API Health Check
@@ -38,19 +39,7 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 */
 
-Route::get('/prices', function () {
-    return response()->json([
-        'success' => true,
-        'data' => [
-            'listing_unlock' => config('prices.listing_unlock.amount'),
-            'worker_unlock'  => config('prices.worker_unlock.amount'),
-            'listing_boost'  => config('prices.listing_boost.amount'),
-            'listing_boost_duration_days' => config('prices.listing_boost.duration_days'),
-            'premium_unlock_package' => config('prices.premium_unlock_package.amount'),
-            'premium_unlock_package_count' => config('prices.premium_unlock_package.unlocks'),
-        ],
-    ]);
-});
+Route::get('/prices', [PricesController::class, 'index']);
 
 Route::prefix('payments')->group(function () {
     Route::post('/unlock-package/create-order', [PaymentController::class, 'createUnlockPackageOrder']);
