@@ -24,16 +24,16 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'phone'    => 'required|digits:10',
+            'email'    => 'required|email',
             'password' => 'required|string|min:6',
         ]);
 
-        $user = User::where('phone', $request->phone)->first();
+        $user = User::where('email', $request->email)->first();
 
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'error'   => ['message' => 'No account found with this phone number.'],
+                'error'   => ['message' => 'No account found with this email address.'],
             ], 401);
         }
 
